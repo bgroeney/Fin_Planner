@@ -1,0 +1,65 @@
+# Docker Compose for local development
+# Provides same environment as production (no background services)
+# Usage: docker-compose up
+
+services:
+  # PostgreSQL database (same as production Neon, but local)
+  db:
+    image: postgres:16-alpine
+    container_name: finplanner-db
+    environment:
+      POSTGRES_USER: finplanner
+      POSTGRES_PASSWORD: devpassword
+      POSTGRES_DB: FinPlanner
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U finplanner -d FinPlanner" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # .NET API (same as Cloud Run)
+  api:
+    build:
+      context: ./Mineplex.FinPlanner.Api
+      dockerfile: Dockerfile
+    container_name: finplanner-api
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__DefaultConnection=Host=db;Database=FinPlanner;Username=finplanner;Password=devpassword
+      - Jwt__Key=local_dev_jwt_secret_key_please_change_12345
+      - Jwt__Issuer=FinPlanner
+      - Jwt__Audience=FinPlannerUser
+      - Gemini__ApiKey=${GEMINI_API_KEY:-}
+    ports:
+      - "5217:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8080/health" ]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # Vue frontend (same as Firebase Hosting, but local dev server)
+  frontend:
+    image: node:20-alpine
+    container_name: finplanner-frontend
+    working_dir: /app
+    environment:
+      - VITE_API_BASE_URL=http://localhost:5217
+    volumes:
+      - ./fin-planner-ui:/app
+      - /app/node_modules
+    ports:
+      - "5173:5173"
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
+    depends_on:
+      - api
+
+volumes:
+  postgres_data:

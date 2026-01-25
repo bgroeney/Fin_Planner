@@ -1,0 +1,83 @@
+# Cloud Build configuration for FinPlanner
+# Deploys API to Cloud Run and frontend to Firebase Hosting
+
+steps:
+  # Build and push API Docker image
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-t'
+      - 'gcr.io/$PROJECT_ID/finplanner-api:$COMMIT_SHA'
+      - '-t'
+      - 'gcr.io/$PROJECT_ID/finplanner-api:latest'
+      - './Mineplex.FinPlanner.Api'
+
+  # Push Docker image to Container Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - 'gcr.io/$PROJECT_ID/finplanner-api:$COMMIT_SHA'
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - 'gcr.io/$PROJECT_ID/finplanner-api:latest'
+
+  # Deploy to Cloud Run
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - 'finplanner-api'
+      - '--image'
+      - 'gcr.io/$PROJECT_ID/finplanner-api:$COMMIT_SHA'
+      - '--region'
+      - '${_REGION}'
+      - '--platform'
+      - 'managed'
+      - '--allow-unauthenticated'
+      - '--min-instances'
+      - '0'
+      - '--max-instances'
+      - '2'
+      - '--memory'
+      - '512Mi'
+      - '--cpu'
+      - '1'
+      - '--set-secrets'
+      - 'ConnectionStrings__DefaultConnection=DATABASE_URL:latest,Jwt__Key=JWT_SECRET:latest,Gemini__ApiKey=GEMINI_API_KEY:latest'
+
+  # Build frontend
+  - name: 'node:20'
+    dir: 'fin-planner-ui'
+    entrypoint: npm
+    args: ['ci']
+
+  - name: 'node:20'
+    dir: 'fin-planner-ui'
+    entrypoint: npm
+    args: ['run', 'build']
+    env:
+      - 'VITE_API_BASE_URL=${_API_URL}'
+
+  # Deploy frontend to Firebase Hosting
+  - name: 'gcr.io/$PROJECT_ID/firebase'
+    dir: 'fin-planner-ui'
+    args:
+      - 'deploy'
+      - '--only'
+      - 'hosting'
+      - '--project'
+      - '$PROJECT_ID'
+
+substitutions:
+  _REGION: australia-southeast1
+  _API_URL: https://finplanner-api-xxxxx-ts.a.run.app
+
+images:
+  - 'gcr.io/$PROJECT_ID/finplanner-api:$COMMIT_SHA'
+  - 'gcr.io/$PROJECT_ID/finplanner-api:latest'
+
+options:
+  logging: CLOUD_LOGGING_ONLY

@@ -1,0 +1,226 @@
+<template>
+  <div class="property-card" @click="$emit('click')">
+    <div class="property-header">
+      <div class="property-type-badge" :class="typeClass">
+        {{ property.buildingType }}
+      </div>
+      <div class="property-yield" :class="yieldClass">
+        {{ property.netYieldPercent.toFixed(1) }}%
+      </div>
+    </div>
+    
+    <div class="property-body">
+      <h4 class="property-address">{{ property.address }}</h4>
+      <div class="property-value">
+        {{ formatCurrency(property.currentValue) }}
+      </div>
+    </div>
+
+    <div class="property-footer">
+      <div class="footer-item">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+          <polyline points="14 2 14 8 20 8"></polyline>
+        </svg>
+        <span>{{ property.leaseCount }} {{ property.leaseCount === 1 ? 'lease' : 'leases' }}</span>
+      </div>
+      <div class="footer-item" v-if="property.nextLeaseExpiry" :class="expiryClass">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"></circle>
+          <polyline points="12 6 12 12 16 14"></polyline>
+        </svg>
+        <span>{{ formatExpiry(property.nextLeaseExpiry) }}</span>
+      </div>
+    </div>
+
+    <div class="property-arrow">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <polyline points="9 18 15 12 9 6"></polyline>
+      </svg>
+    </div>
+  </div>
+</template>
+
+<script setup>
+import { computed } from 'vue';
+
+const props = defineProps({
+  property: {
+    type: Object,
+    required: true
+  }
+});
+
+defineEmits(['click']);
+
+const typeClass = computed(() => ({
+  'type-office': props.property.buildingType === 'Office',
+  'type-retail': props.property.buildingType === 'Retail',
+  'type-industrial': props.property.buildingType === 'Industrial',
+  'type-mixed': props.property.buildingType === 'Mixed'
+}));
+
+const yieldClass = computed(() => {
+  const y = props.property.netYieldPercent;
+  if (y >= 6) return 'yield-good';
+  if (y >= 4) return 'yield-medium';
+  return 'yield-low';
+});
+
+const expiryClass = computed(() => {
+  if (!props.property.nextLeaseExpiry) return '';
+  const monthsAway = monthsDiff(new Date(), new Date(props.property.nextLeaseExpiry));
+  if (monthsAway <= 6) return 'expiry-urgent';
+  if (monthsAway <= 12) return 'expiry-warning';
+  return '';
+});
+
+function formatCurrency(value) {
+  return new Intl.NumberFormat('en-AU', {
+    style: 'currency',
+    currency: 'AUD',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0
+  }).format(value || 0);
+}
+
+function formatExpiry(date) {
+  const d = new Date(date);
+  const now = new Date();
+  const months = monthsDiff(now, d);
+  
+  if (months <= 0) return 'Expired';
+  if (months === 1) return 'Exp. 1mo';
+  if (months < 12) return `Exp. ${months}mo`;
+  return d.toLocaleDateString('en-AU', { month: 'short', year: '2-digit' });
+}
+
+function monthsDiff(from, to) {
+  return (to.getFullYear() - from.getFullYear()) * 12 
+    + (to.getMonth() - from.getMonth());
+}
+</script>
+
+<style scoped>
+.property-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-md);
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  position: relative;
+}
+
+.property-card:hover {
+  border-color: var(--color-industrial-copper);
+  box-shadow: var(--shadow-sm);
+}
+
+.property-card:hover .property-arrow {
+  opacity: 1;
+  transform: translateX(4px);
+}
+
+.property-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.property-type-badge {
+  padding: var(--spacing-xs) var(--spacing-sm);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-primary);
+}
+
+.type-office { color: #1e40af; }
+.type-retail { color: #7c3aed; }
+.type-industrial { color: #b45309; }
+.type-mixed { color: #0f766e; }
+
+.property-yield {
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border-radius: var(--radius-sm);
+}
+
+.yield-good {
+  color: #059669;
+  background: rgba(5, 150, 105, 0.1);
+}
+
+.yield-medium {
+  color: #d97706;
+  background: rgba(217, 119, 6, 0.1);
+}
+
+.yield-low {
+  color: #dc2626;
+  background: rgba(220, 38, 38, 0.1);
+}
+
+.property-body {
+  padding: var(--spacing-xs) 0;
+}
+
+.property-address {
+  font-size: var(--font-size-base);
+  font-weight: 600;
+  color: var(--color-text-primary);
+  margin-bottom: var(--spacing-xs);
+  line-height: 1.3;
+}
+
+.property-value {
+  font-size: var(--font-size-xl);
+  font-weight: 700;
+  font-family: var(--font-display);
+  color: var(--color-text-primary);
+}
+
+.property-footer {
+  display: flex;
+  gap: var(--spacing-md);
+  padding-top: var(--spacing-sm);
+  border-top: 1px solid var(--color-border-subtle);
+}
+
+.footer-item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+}
+
+.footer-item svg {
+  opacity: 0.7;
+}
+
+.expiry-urgent {
+  color: #dc2626;
+}
+
+.expiry-warning {
+  color: #d97706;
+}
+
+.property-arrow {
+  position: absolute;
+  right: var(--spacing-md);
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--color-text-muted);
+  opacity: 0;
+  transition: all var(--transition-fast);
+}
+</style>
