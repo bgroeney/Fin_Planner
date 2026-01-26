@@ -88,6 +88,10 @@ namespace Mineplex.FinPlanner.Api.Data
                 .Property(t => t.Units)
                 .HasPrecision(18, 6);
 
+            modelBuilder.Entity<Transaction>()
+                // Optimization: Composite index for efficient date-based filtering and sorting per account
+                .HasIndex(t => new { t.AccountId, t.EffectiveDate });
+
             // Portfolio Cascade Delete Configuration
             // When a Portfolio is deleted, cascade to related entities
             modelBuilder.Entity<Account>()
@@ -109,7 +113,8 @@ namespace Mineplex.FinPlanner.Api.Data
                 .OnDelete(DeleteBehavior.Cascade);
 
             modelBuilder.Entity<PerformanceSnapshot>()
-                .HasIndex(ps => ps.PortfolioId);
+                // Optimization: Composite index for efficient dashboard history retrieval and sorting
+                .HasIndex(ps => new { ps.PortfolioId, ps.Date });
             modelBuilder.Entity<PerformanceSnapshot>()
                 .HasOne<Portfolio>()
                 .WithMany()
