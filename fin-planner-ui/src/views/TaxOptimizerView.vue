@@ -26,7 +26,7 @@
         :disabled="!selectedTrustId || loading"
         @click="runOptimization"
       >
-        {{ loading ? 'Optimizing...' : '🎯 Optimize Distribution' }}
+        {{ loading ? 'Optimizing...' : 'Optimize Distribution' }}
       </button>
     </div>
 
@@ -133,7 +133,9 @@
     </div>
 
     <div v-else-if="!selectedTrustId" class="empty-state card">
-      <div class="empty-icon">🎯</div>
+      <div class="empty-icon">
+        <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+      </div>
       <h3>Select a Trust to Optimize</h3>
       <p>Choose a trust from the dropdown above to run the tax distribution optimizer.</p>
       <router-link to="/entities" class="btn btn-secondary" v-if="trusts.length === 0">
