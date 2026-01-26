@@ -1,108 +1,164 @@
 <template>
-  <div class="acquisition-planner" :class="{ 'drill-down-mode': isDrillDownMode }">
+  <div class="acquisition-planner">
     <!-- Header -->
     <header class="planner-header">
       <div class="header-content">
-        <div class="breadcrumb">
-          <router-link to="/properties" class="breadcrumb-link">Properties</router-link>
-          <span class="breadcrumb-sep">/</span>
-          <template v-if="isDrillDownMode">
-            <a href="#" @click.prevent="exitDrillDown" class="breadcrumb-link">Acquisitions</a>
-            <span class="breadcrumb-sep">/</span>
-            <span class="breadcrumb-current">{{ selectedDeal?.name }}</span>
-          </template>
-          <span v-else class="breadcrumb-current">Acquisitions</span>
+        <!-- Breadcrumbs & Nav -->
+        <div class="nav-area">
+          <div class="breadcrumb">
+             <router-link to="/properties" class="breadcrumb-link">Properties</router-link>
+             <span class="breadcrumb-sep">/</span>
+             <a href="#" v-if="selectedDeal" @click.prevent="clearSelection" class="breadcrumb-link">Acquisitions</a>
+             <span class="breadcrumb-current" v-else>Acquisitions</span>
+          </div>
+          
+          <!-- Title / Deal Selector -->
+          <div v-if="!selectedDeal" class="page-title-wrapper">
+             <h1 class="page-title">Acquisition Planner</h1>
+             <p class="page-subtitle">Analyze potential deals with uncertainty modeling</p>
+          </div>
+          <div v-else class="deal-selector-wrapper" v-click-outside="closeDealDropdown">
+             <button class="deal-selector-btn" @click="toggleDealDropdown">
+                <span class="deal-selector-name">{{ selectedDeal.name }}</span>
+                <svg class="chevron-icon" :class="{ rotated: showDealDropdown }" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+             </button>
+             
+             <!-- Deal Dropdown Menu -->
+             <transition name="dropdown-fade">
+               <div v-if="showDealDropdown" class="deal-dropdown-menu glass-card">
+                  <div class="dropdown-search">
+                     <input type="text" v-model="dealSearch" placeholder="Search deals..." class="search-input" ref="searchInput" />
+                  </div>
+                  <div class="dropdown-list">
+                     <div v-if="filteredDropdownDeals.length === 0" class="dropdown-empty">No deals found</div>
+                     <button 
+                        v-for="deal in filteredDropdownDeals" 
+                        :key="deal.id"
+                        class="dropdown-item"
+                        :class="{ active: deal.id === selectedDeal.id }"
+                        @click="switchDeal(deal.id)"
+                     >
+                        <span class="dropdown-item-name">{{ deal.name }}</span>
+                        <span class="dropdown-item-status" :class="getStatusClass(deal.status)">{{ deal.status }}</span>
+                     </button>
+                  </div>
+                  <div class="dropdown-footer">
+                     <button class="btn-create-dropdown" @click="openNewDealModalFromDropdown">
+                        + New Deal
+                     </button>
+                  </div>
+               </div>
+             </transition>
+          </div>
         </div>
-        <h1 class="page-title">{{ isDrillDownMode ? selectedDeal?.name : 'Acquisition Planner' }}</h1>
-        <p class="page-subtitle">{{ isDrillDownMode ? selectedDeal?.address || 'Cashflow Analysis' : 'Analyze potential deals with uncertainty modeling' }}</p>
       </div>
+
       <div class="header-actions">
-        <button v-if="isDrillDownMode" class="btn btn-secondary" @click="exitDrillDown">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <line x1="19" y1="12" x2="5" y2="12"></line>
-            <polyline points="12 19 5 12 12 5"></polyline>
-          </svg>
-          Back to List
-        </button>
-        <button v-if="!isDrillDownMode" class="btn btn-primary" @click="openNewDealModal">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <line x1="12" y1="5" x2="12" y2="19"></line>
-            <line x1="5" y1="12" x2="19" y2="12"></line>
-          </svg>
-          New Deal
-        </button>
+        <!-- Actions vary by mode -->
+        <template v-if="!selectedDeal">
+           <div class="view-toggles">
+              <select v-model="statusFilter" class="status-filter-large">
+                <option value="">All Statuses</option>
+                <option value="Draft">Drafts</option>
+                <option value="Analyzing">Analyzing</option>
+                <option value="Buy">Buy</option>
+                <option value="Pass">Pass</option>
+              </select>
+           </div>
+           <button class="btn btn-primary" @click="openNewDealModal">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="12" y1="5" x2="12" y2="19"></line>
+              <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+            New Deal
+          </button>
+        </template>
+        <template v-else>
+           <button class="btn btn-secondary" @click="clearSelection">
+              Close Deal
+           </button>
+        </template>
       </div>
     </header>
 
-    <!-- Main Layout - List Mode -->
-    <div v-if="!isDrillDownMode" class="planner-layout">
-      <!-- Deals Sidebar -->
-      <aside class="deals-sidebar card">
-        <div class="sidebar-header">
-          <h3>Scenarios</h3>
-          <select v-model="statusFilter" class="status-filter">
-            <option value="">All</option>
-            <option value="Draft">Drafts</option>
-            <option value="Analyzing">Analyzing</option>
-            <option value="Buy">Buy</option>
-            <option value="Pass">Pass</option>
-            <option value="Uneconomic">Uneconomic</option>
-          </select>
+    <!-- IMMERSIVE LAYOUT -->
+    <div class="immersive-content">
+      
+      <!-- Dashboard Grid (Index View) -->
+      <transition name="fade-slide" mode="out-in">
+        <div v-if="!selectedDeal" class="dashboard-grid-view">
+           <div v-if="loading" class="loading-state">
+              <MoneyBoxLoader />
+           </div>
+           <div v-else-if="filteredDeals.length === 0" class="empty-state-large">
+              <div class="empty-content">
+                 <div class="empty-icon-circle">
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
+                 </div>
+                 <h3>No Deals Found</h3>
+                 <p>Start your acquisition pipeline by adding a new property deal.</p>
+                 <button class="btn btn-primary mt-4" @click="openNewDealModal">Create First Deal</button>
+              </div>
+           </div>
+           <div v-else class="deals-grid">
+              <div 
+                v-for="deal in filteredDeals" 
+                :key="deal.id" 
+                class="deal-card glass-card hover-lift"
+                @click="selectDeal(deal.id)"
+              >
+                  <div class="deal-card-header">
+                     <span class="deal-status-badge" :class="getStatusClass(deal.status)">{{ deal.status }}</span>
+                     <button class="btn-icon-more" @click.stop>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
+                     </button>
+                  </div>
+                  <div class="deal-card-body">
+                     <h3 class="deal-card-title">{{ deal.name }}</h3>
+                     <p class="deal-card-address">{{ deal.address || 'No address provided' }}</p>
+                     
+                     <div class="deal-metrics">
+                        <div class="metric">
+                           <span class="label">Price</span>
+                           <span class="value">{{ formatCurrency(deal.askingPrice) }}</span>
+                        </div>
+                        <div class="metric">
+                           <span class="label">Cap Rate</span>
+                           <span class="value">{{ deal.calculatedCapRate ? (deal.calculatedCapRate * 100).toFixed(1) + '%' : '-' }}</span>
+                        </div>
+                     </div>
+                  </div>
+                  <div class="deal-card-footer">
+                     <div v-if="deal.simulationResults && deal.simulationResults.length > 0" class="sim-badge success">
+                        Simulated
+                     </div>
+                     <div v-else class="sim-badge empty">
+                        No Analysis
+                     </div>
+                     <span class="last-updated">Updated today</span>
+                  </div>
+              </div>
+           </div>
         </div>
-        <div v-if="loading" class="sidebar-loading">
-          <MoneyBoxLoader size="sm" />
-        </div>
-        <div v-else-if="filteredDeals.length === 0" class="empty-sidebar">
-          <p>No deals yet</p>
-          <button class="btn btn-secondary btn-sm" @click="openNewDealModal">Create First</button>
-        </div>
-        <ul v-else class="deals-list">
-          <li
-            v-for="deal in filteredDeals"
-            :key="deal.id"
-            class="deal-item"
-            @click="enterDrillDown(deal.id)"
-          >
-            <div class="deal-item-header">
-              <span class="deal-name">{{ deal.name }}</span>
-              <span class="deal-status" :class="getStatusClass(deal.status)">{{ deal.status }}</span>
-            </div>
-            <div class="deal-item-meta">
-              <span class="deal-price">{{ formatCurrency(deal.askingPrice) }}</span>
-              <span class="deal-cap">{{ deal.capRate.toFixed(1) }}% cap</span>
-            </div>
-          </li>
-        </ul>
-      </aside>
 
-      <!-- Summary Preview -->
-      <main class="preview-area">
-        <div class="empty-workbench card">
-          <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
-            <polyline points="9 22 9 12 15 12 15 22"></polyline>
-          </svg>
-          <h3>Select a Deal to Analyze</h3>
-          <p>Click a scenario from the list to view detailed cashflow analysis</p>
+        <!-- Full Screen Workbench (Detail View) -->
+        <div v-else class="workbench-container" key="workbench">
+          <DealWorkbench
+            :deal="selectedDeal"
+            :simulation-results="simulationResults"
+            :running-simulation="runningSimulation"
+            @update="handleDealUpdate"
+            @run-simulation="handleRunSimulation"
+            @record-decision="handleRecordDecision"
+            @refresh="handleRefresh"
+          />
         </div>
-      </main>
-    </div>
-
-    <!-- Drill-Down Mode - Full Workbench -->
-    <div v-else class="drill-down-workbench">
-      <DealWorkbench
-        :deal="selectedDeal"
-        :simulation-results="simulationResults"
-        :running-simulation="runningSimulation"
-        @update="handleDealUpdate"
-        @run-simulation="handleRunSimulation"
-        @record-decision="handleRecordDecision"
-      />
+      </transition>
     </div>
 
     <!-- New Deal Modal -->
     <div v-if="showNewDealModal" class="modal-backdrop" @click.self="showNewDealModal = false">
-      <div class="modal deal-modal card">
+      <div class="modal deal-modal glass-card">
         <div class="modal-header">
           <h2>New Property Deal</h2>
           <button class="btn-close" @click="showNewDealModal = false">×</button>
@@ -110,7 +166,7 @@
         <form @submit.prevent="createDeal" class="modal-body">
           <div class="form-group">
             <label>Deal Name *</label>
-            <input v-model="newDeal.name" type="text" required placeholder="e.g., 123 Industrial Ave - Warehouse" />
+            <input v-model="newDeal.name" type="text" required placeholder="e.g., 123 Industrial Ave - Warehouse" class="input-lg" />
           </div>
           <div class="form-row">
             <div class="form-group">
@@ -151,15 +207,30 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue';
+import { ref, computed, onMounted, nextTick } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import api from '../services/api';
 import { runSimulation, formatCurrency as formatCurrencyUtil } from '../services/monteCarloEngine';
 import MoneyBoxLoader from '../components/MoneyBoxLoader.vue';
 import DealWorkbench from '../components/property/DealWorkbench.vue';
 
+// Custom v-click-outside directive (simple local version)
+const vClickOutside = {
+  mounted(el, binding) {
+    el._clickOutsideHandler = (event) => {
+      if (!(el === event.target || el.contains(event.target))) {
+        binding.value(event);
+      }
+    };
+    document.body.addEventListener('click', el._clickOutsideHandler);
+  },
+  unmounted(el) {
+    document.body.removeEventListener('click', el._clickOutsideHandler);
+  }
+};
+
 const route = useRoute();
-const router = useRouter();
+const useRouterInstance = useRouter();
 
 // State
 const loading = ref(true);
@@ -170,7 +241,11 @@ const statusFilter = ref('');
 const showNewDealModal = ref(false);
 const creatingDeal = ref(false);
 const runningSimulation = ref(false);
-const isDrillDownMode = ref(false);
+
+// Header State
+const showDealDropdown = ref(false);
+const dealSearch = ref('');
+const searchInput = ref(null);
 
 const newDeal = ref({
   name: '',
@@ -184,6 +259,15 @@ const newDeal = ref({
 const filteredDeals = computed(() => {
   if (!statusFilter.value) return deals.value;
   return deals.value.filter(d => d.status === statusFilter.value);
+});
+
+const filteredDropdownDeals = computed(() => {
+  let list = deals.value;
+  if (dealSearch.value) {
+    const q = dealSearch.value.toLowerCase();
+    list = list.filter(d => d.name.toLowerCase().includes(q) || (d.address && d.address.toLowerCase().includes(q)));
+  }
+  return list;
 });
 
 // Lifecycle
@@ -212,26 +296,52 @@ async function fetchDeals() {
 
 async function selectDeal(dealId) {
   try {
+    // Optimistic active state update if already loaded
+    if (deals.value.length > 0) {
+       // Just ensure we don't flash empty if we click the same one
+       if (selectedDeal.value?.id === dealId) return; 
+    }
+
     const response = await api.get(`/propertydeals/${dealId}`);
     selectedDeal.value = response.data;
+    
+    // Check if we have simulation results populated on the read model
+    // Assuming backend populates basic simulation results or we fetch them separately
+    // If your backend isn't sending simulationResults array, we might need a separate call
+    // or rely on what's in the deal object if it's there.
+    // For now assuming it is or we tolerate null.
     simulationResults.value = response.data.simulationResults?.[0] || null;
     
     // Update URL
-    router.replace({ query: { deal: dealId } });
+    useRouterInstance.replace({ query: { deal: dealId } });
+    showDealDropdown.value = false;
   } catch (error) {
     console.error('Failed to load deal:', error);
   }
 }
 
-async function enterDrillDown(dealId) {
-  await selectDeal(dealId);
-  isDrillDownMode.value = true;
+function clearSelection() {
+   selectedDeal.value = null;
+   useRouterInstance.replace({ query: {} });
+   showDealDropdown.value = false;
+   fetchDeals(); // Refresh list to ensure latest data
 }
 
-function exitDrillDown() {
-  isDrillDownMode.value = false;
-  selectedDeal.value = null;
-  router.replace({ query: {} });
+function switchDeal(dealId) {
+   selectDeal(dealId);
+}
+
+function toggleDealDropdown() {
+   showDealDropdown.value = !showDealDropdown.value;
+   if (showDealDropdown.value) {
+      nextTick(() => {
+         searchInput.value?.focus();
+      });
+   }
+}
+
+function closeDealDropdown() {
+   showDealDropdown.value = false;
 }
 
 function openNewDealModal() {
@@ -245,13 +355,18 @@ function openNewDealModal() {
   showNewDealModal.value = true;
 }
 
+function openNewDealModalFromDropdown() {
+   showDealDropdown.value = false;
+   openNewDealModal();
+}
+
 async function createDeal() {
   try {
     creatingDeal.value = true;
     const response = await api.post('/propertydeals', newDeal.value);
     showNewDealModal.value = false;
-    await fetchDeals();
-    await selectDeal(response.data.id);
+    await fetchDeals(); // Refresh list
+    await selectDeal(response.data.id); // Select new deal
   } catch (error) {
     console.error('Failed to create deal:', error);
     alert('Failed to create deal. Please try again.');
@@ -267,8 +382,11 @@ async function handleDealUpdate(updates) {
     const response = await api.put(`/propertydeals/${selectedDeal.value.id}`, updates);
     selectedDeal.value = response.data;
     
-    // Refresh deals list for sidebar
-    await fetchDeals();
+    // Update item in local list list to reflect changes (e.g. name, status)
+    const index = deals.value.findIndex(d => d.id === selectedDeal.value.id);
+    if (index !== -1) {
+      deals.value[index] = { ...deals.value[index], ...response.data };
+    }
   } catch (error) {
     console.error('Failed to update deal:', error);
   }
@@ -325,9 +443,15 @@ async function handleRunSimulation() {
       inputsSnapshotJson: JSON.stringify(inputs)
     });
     
-    // Refresh deal to get updated status and persistent results
-    await selectDeal(selectedDeal.value.id);
-    await fetchDeals();
+    // Refresh deal
+    const updated = await api.get(`/propertydeals/${selectedDeal.value.id}`);
+     selectedDeal.value = updated.data;
+     
+     // Update list
+    const index = deals.value.findIndex(d => d.id === selectedDeal.value.id);
+    if (index !== -1) {
+       deals.value[index] = { ...updated.data };
+    }
     
   } catch (error) {
     console.error('Simulation failed:', error);
@@ -346,11 +470,24 @@ async function handleRecordDecision(decision, rationale) {
       rationale
     });
     
-    await selectDeal(selectedDeal.value.id);
-    await fetchDeals();
+    // Refresh
+    const updated = await api.get(`/propertydeals/${selectedDeal.value.id}`);
+    selectedDeal.value = updated.data;
+     
+     // Update list
+    const index = deals.value.findIndex(d => d.id === selectedDeal.value.id);
+    if (index !== -1) {
+       deals.value[index].status = decision;
+    }
   } catch (error) {
     console.error('Failed to record decision:', error);
     alert('Failed to record decision. Please try again.');
+  }
+}
+
+async function handleRefresh() {
+  if (selectedDeal.value) {
+    await selectDeal(selectedDeal.value.id);
   }
 }
 
@@ -371,18 +508,29 @@ function formatCurrency(value) {
 
 <style scoped>
 .acquisition-planner {
-  max-width: 1600px;
+  max-width: 1800px;
+  margin: 0 auto;
   padding: 0 var(--spacing-md);
+  height: calc(100vh - 80px); /* Fill remaining height */
+  display: flex;
+  flex-direction: column;
 }
 
 /* Header */
 .planner-header {
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: var(--spacing-xl);
-  padding-bottom: var(--spacing-lg);
+  align-items: center;
+  margin-bottom: var(--spacing-lg);
+  padding: var(--spacing-md) 0;
   border-bottom: 3px solid var(--color-industrial-copper);
+  flex-shrink: 0;
+}
+
+.nav-area {
+   display: flex;
+   flex-direction: column;
+   gap: 4px;
 }
 
 .breadcrumb {
@@ -390,7 +538,7 @@ function formatCurrency(value) {
   align-items: center;
   gap: var(--spacing-xs);
   font-size: var(--font-size-sm);
-  margin-bottom: var(--spacing-sm);
+  color: var(--color-text-muted);
 }
 
 .breadcrumb-link {
@@ -402,176 +550,331 @@ function formatCurrency(value) {
   color: var(--color-industrial-copper);
 }
 
-.breadcrumb-sep {
-  color: var(--color-text-muted);
-}
-
-.breadcrumb-current {
-  color: var(--color-text-primary);
-  font-weight: 500;
+.breadcrumb-start {
+   font-weight: 500;
 }
 
 .page-title {
   font-size: var(--font-size-2xl);
   font-weight: 700;
   letter-spacing: -0.02em;
-  margin: 0 0 var(--spacing-xs) 0;
+  margin: 0;
   color: var(--color-text-primary);
+  line-height: 1.2;
 }
 
 .page-subtitle {
   color: var(--color-text-muted);
   margin: 0;
-}
-
-/* Layout */
-.planner-layout {
-  display: grid;
-  grid-template-columns: 280px 1fr;
-  gap: var(--spacing-lg);
-  min-height: calc(100vh - 200px);
-}
-
-@media (max-width: 1000px) {
-  .planner-layout {
-    grid-template-columns: 1fr;
-  }
-  
-  .deals-sidebar {
-    max-height: 300px;
-  }
-}
-
-/* Sidebar */
-.deals-sidebar {
-  padding: 0;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-}
-
-.sidebar-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: var(--spacing-md);
-  border-bottom: 1px solid var(--color-border);
-}
-
-.sidebar-header h3 {
-  margin: 0;
-  font-size: var(--font-size-base);
-  font-weight: 600;
-}
-
-.status-filter {
-  padding: var(--spacing-xs) var(--spacing-sm);
-  font-size: var(--font-size-xs);
-  border-radius: var(--radius-md);
-  border: 1px solid var(--color-border);
-  background: var(--color-bg-elevated);
-}
-
-.sidebar-loading,
-.empty-sidebar {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: var(--spacing-xl);
-  text-align: center;
-  color: var(--color-text-muted);
-  gap: var(--spacing-md);
-}
-
-.deals-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  overflow-y: auto;
-  flex: 1;
-}
-
-.deal-item {
-  padding: var(--spacing-md);
-  border-bottom: 1px solid var(--color-border-subtle);
-  cursor: pointer;
-  transition: background var(--transition-fast);
-}
-
-.deal-item:hover {
-  background: var(--color-bg-elevated);
-}
-
-.deal-item.active {
-  background: rgba(180, 83, 9, 0.08);
-  border-left: 3px solid var(--color-industrial-copper);
-}
-
-.deal-item-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: var(--spacing-xs);
-}
-
-.deal-name {
-  font-weight: 500;
   font-size: var(--font-size-sm);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 150px;
 }
 
-.deal-status {
-  font-size: 10px;
-  font-weight: 600;
-  text-transform: uppercase;
-  padding: 2px 6px;
-  border-radius: var(--radius-full);
+/* Deal Selector */
+.deal-selector-wrapper {
+   position: relative;
+   display: inline-block;
 }
 
+.deal-selector-btn {
+   display: flex;
+   align-items: center;
+   gap: 8px;
+   background: none;
+   border: none;
+   padding: 0;
+   cursor: pointer;
+   color: var(--color-text-primary);
+}
+
+.deal-selector-name {
+   font-size: var(--font-size-2xl);
+   font-weight: 700;
+   letter-spacing: -0.02em;
+}
+
+.chevron-icon {
+   color: var(--color-text-muted);
+   transition: transform 0.2s;
+}
+
+.chevron-icon.rotated {
+   transform: rotate(180deg);
+}
+
+/* Dropdown */
+.deal-dropdown-menu {
+   position: absolute;
+   top: 100%;
+   left: 0;
+   width: 300px;
+   margin-top: 8px;
+   background: var(--glass-bg);
+   backdrop-filter: blur(12px);
+   border: 1px solid var(--glass-border);
+   border-radius: var(--radius-lg);
+   box-shadow: var(--shadow-xl);
+   z-index: 100;
+   display: flex;
+   flex-direction: column;
+   max-height: 400px;
+}
+
+.dropdown-search {
+   padding: 12px;
+   border-bottom: 1px solid var(--glass-border);
+}
+
+.search-input {
+   width: 100%;
+   padding: 8px 12px;
+   border: 1px solid var(--color-border);
+   border-radius: var(--radius-md);
+   background: var(--color-bg-elevated);
+   font-size: 13px;
+   color: var(--color-text-primary);
+}
+
+.dropdown-list {
+   overflow-y: auto;
+   padding: 4px;
+   flex: 1;
+}
+
+.dropdown-item {
+   width: 100%;
+   text-align: left;
+   padding: 10px 12px;
+   display: flex;
+   justify-content: space-between;
+   align-items: center;
+   background: none;
+   border: none;
+   border-radius: var(--radius-md);
+   cursor: pointer;
+   transition: background 0.1s;
+}
+
+.dropdown-item:hover, .dropdown-item.active {
+   background: var(--color-bg-elevated);
+}
+
+.dropdown-item.active {
+   color: var(--color-accent);
+}
+
+.dropdown-item-name {
+   font-weight: 500;
+   font-size: 13px;
+   white-space: nowrap;
+   overflow: hidden;
+   text-overflow: ellipsis;
+   max-width: 180px;
+}
+
+.dropdown-item-status {
+   font-size: 10px;
+   text-transform: uppercase;
+   font-weight: 700;
+   padding: 2px 6px;
+   border-radius: 99px;
+}
+
+.dropdown-footer {
+   padding: 8px;
+   border-top: 1px solid var(--glass-border);
+}
+
+.btn-create-dropdown {
+   width: 100%;
+   padding: 8px;
+   background: var(--color-bg-elevated);
+   border: 1px dashed var(--color-border);
+   border-radius: var(--radius-md);
+   color: var(--color-text-muted);
+   font-size: 12px;
+   cursor: pointer;
+}
+
+.btn-create-dropdown:hover {
+   color: var(--color-accent);
+   border-color: var(--color-accent);
+}
+
+/* Immersive Content */
+.immersive-content {
+   flex: 1;
+   display: flex;
+   flex-direction: column;
+   overflow: hidden;
+   position: relative;
+}
+
+.dashboard-grid-view {
+   height: 100%;
+   overflow-y: auto;
+   padding-bottom: var(--spacing-xl);
+}
+
+.deals-grid {
+   display: grid;
+   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+   gap: var(--spacing-lg);
+}
+
+/* Deal Card */
+.deal-card {
+   border-radius: var(--radius-lg);
+   padding: var(--spacing-lg);
+   cursor: pointer;
+   transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+   border: 1px solid var(--glass-border);
+   display: flex;
+   flex-direction: column;
+   height: 240px;
+}
+
+.deal-card:hover {
+   transform: translateY(-4px);
+   box-shadow: var(--shadow-xl), 0 0 0 1px var(--color-accent);
+}
+
+.deal-card-header {
+   display: flex;
+   justify-content: space-between;
+   margin-bottom: var(--spacing-md);
+}
+
+.deal-status-badge {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    padding: 4px 8px;
+    border-radius: 4px;
+}
+
+.btn-icon-more {
+   background: none;
+   border: none;
+   color: var(--color-text-muted);
+   cursor: pointer;
+   padding: 0;
+}
+
+.deal-card-title {
+   font-size: var(--font-size-lg);
+   font-weight: 700;
+   margin: 0 0 4px 0;
+   line-height: 1.3;
+   display: -webkit-box;
+   -webkit-line-clamp: 2;
+   -webkit-box-orient: vertical;
+   overflow: hidden;
+}
+
+.deal-card-address {
+   color: var(--color-text-muted);
+   font-size: var(--font-size-sm);
+   margin-bottom: var(--spacing-lg);
+   white-space: nowrap;
+   overflow: hidden;
+   text-overflow: ellipsis;
+}
+
+.deal-metrics {
+   margin-top: auto;
+   display: flex;
+   justify-content: space-between;
+   padding-top: var(--spacing-md);
+   border-top: 1px solid var(--color-border-subtle);
+}
+
+.metric {
+   display: flex;
+   flex-direction: column;
+}
+
+.metric .label {
+   font-size: 10px;
+   text-transform: uppercase;
+   color: var(--color-text-muted);
+   font-weight: 600;
+}
+
+.metric .value {
+   font-weight: 700;
+   font-family: var(--font-mono);
+   font-size: 14px;
+}
+
+.deal-card-footer {
+   margin-top: 12px;
+   display: flex;
+   justify-content: space-between;
+   align-items: center;
+}
+
+.sim-badge {
+   font-size: 10px;
+   font-weight: 600;
+   display: flex;
+   align-items: center;
+   gap: 4px;
+}
+
+.sim-badge.success { color: var(--color-success); }
+.sim-badge.success::before {
+   content: '';
+   display: block;
+   width: 6px;
+   height: 6px;
+   border-radius: 50%;
+   background: var(--color-success);
+}
+
+.sim-badge.empty { color: var(--color-text-muted); opacity: 0.7; }
+
+.last-updated {
+   font-size: 10px;
+   color: var(--color-text-muted);
+}
+
+/* Status Colors */
 .status-draft { background: var(--color-bg-elevated); color: var(--color-text-muted); }
 .status-analyzing { background: rgba(59, 130, 246, 0.1); color: var(--color-info); }
 .status-buy { background: rgba(16, 185, 129, 0.1); color: var(--color-success); }
 .status-pass { background: var(--color-bg-elevated); color: var(--color-text-secondary); }
 .status-uneconomic { background: rgba(239, 68, 68, 0.1); color: var(--color-danger); }
 
-.deal-item-meta {
-  display: flex;
-  justify-content: space-between;
-  font-size: var(--font-size-xs);
-  color: var(--color-text-muted);
+/* Transitions */
+.dropdown-fade-enter-active, .dropdown-fade-leave-active {
+   transition: all 0.2s ease;
+}
+.dropdown-fade-enter-from, .dropdown-fade-leave-to {
+   opacity: 0;
+   transform: translateY(-8px);
 }
 
-/* Workbench */
-.workbench-area {
-  min-height: 500px;
+.fade-slide-enter-active, .fade-slide-leave-active {
+  transition: opacity 0.3s ease, transform 0.3s ease;
 }
 
-.empty-workbench {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-  text-align: center;
-  color: var(--color-text-muted);
-  gap: var(--spacing-md);
-  padding: var(--spacing-2xl);
+.fade-slide-enter-from {
+  opacity: 0;
+  transform: translateY(10px);
+}
+.fade-slide-leave-to {
+  opacity: 0;
+  transform: translateY(-10px);
 }
 
-.empty-workbench svg {
-  opacity: 0.4;
+/* Workbench Container */
+.workbench-container {
+   height: 100%;
+   width: 100%;
+   overflow-y: auto;
 }
 
-.empty-workbench h3 {
-  margin: 0;
-  color: var(--color-text-primary);
-}
-
-/* Modal */
+/* Modal and inputs (reused from previous) */
 .modal-backdrop {
   position: fixed;
   inset: 0;
@@ -585,8 +888,8 @@ function formatCurrency(value) {
 
 .deal-modal {
   width: 520px;
-  max-width: 90%;
-  border: 2px solid var(--color-industrial-copper);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--shadow-2xl);
 }
 
 .modal-header {
@@ -597,55 +900,60 @@ function formatCurrency(value) {
   border-bottom: 1px solid var(--color-border);
 }
 
-.modal-header h2 {
-  margin: 0;
-  font-size: var(--font-size-lg);
+.input-lg {
+   font-size: 1.1rem;
+   padding: 12px;
 }
 
 .btn-close {
-  background: none;
-  border: none;
-  font-size: 1.5rem;
-  cursor: pointer;
-  color: var(--color-text-muted);
+   background: none;
+   border: none;
+   font-size: 24px;
+   cursor: pointer;
+   color: var(--color-text-muted);
 }
 
 .modal-body {
-  padding: var(--spacing-lg);
-}
-
-.form-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--spacing-md);
+   padding: var(--spacing-lg);
 }
 
 .modal-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: var(--spacing-md);
-  margin-top: var(--spacing-lg);
-  padding-top: var(--spacing-lg);
-  border-top: 1px solid var(--color-border);
+   display: flex;
+   justify-content: flex-end;
+   gap: 12px;
+   margin-top: 24px;
 }
 
-/* Header Actions */
-.header-actions {
-  display: flex;
-  gap: var(--spacing-md);
+.empty-state-large {
+   display: flex;
+   align-items: center;
+   justify-content: center;
+   height: 60vh;
 }
 
-/* Drill-Down Mode */
-.drill-down-mode .planner-header {
-  margin-bottom: var(--spacing-lg);
+.empty-content {
+   text-align: center;
+   max-width: 400px;
 }
 
-.drill-down-workbench {
-  min-height: calc(100vh - 200px);
+.empty-icon-circle {
+   width: 80px;
+   height: 80px;
+   background: var(--color-bg-elevated);
+   border-radius: 50%;
+   display: flex;
+   align-items: center;
+   justify-content: center;
+   margin: 0 auto 24px;
+   color: var(--color-industrial-copper);
 }
 
-/* Preview Area (same as workbench area) */
-.preview-area {
-  min-height: 500px;
+.status-filter-large {
+   padding: 8px 16px;
+   border-radius: var(--radius-md);
+   border: 1px solid var(--color-border);
+   background: var(--glass-bg);
+   font-size: 14px;
+   cursor: pointer;
 }
 </style>

@@ -186,6 +186,7 @@ const inputs = ref({
   // Acquisition specific (can be 0 for existing holdings)
   stampDutyRate: 0,
   legalCosts: 0,
+  buyersAgentFeeRate: 0,
   capExReserve: 0,
   includeAcquisitionCost: false // false = Gross (Intrinsic Value), true = Net (Profit)
 });
@@ -200,10 +201,10 @@ const distributions = ref({
 
 // 4x4 Matrix: Rent, Vacancy, Interest, Growth
 const correlationMatrix = ref([
-    [1, 0, 0, 0],
-    [0, 1, 0, 0],
-    [0, 0, 1, 0],
-    [0, 0, 0, 1]
+    [1.0, -0.7, 0.0, 0.7],
+    [-0.7, 1.0, 0.3, -0.6],
+    [0.0, 0.3, 1.0, -0.5],
+    [0.7, -0.6, -0.5, 1.0]
 ]);
 
 const showCorrelationModal = ref(false);
@@ -214,7 +215,9 @@ const running = ref(false);
 const initialEquity = computed(() => {
   // For existing holdings: Value - Loan
   // For acquisitions: Total Cost - Loan
-  const acquisitionCosts = (inputs.value.propertyValue * (inputs.value.stampDutyRate / 100)) + inputs.value.legalCosts + inputs.value.capExReserve;
+  const stampDuty = inputs.value.propertyValue * (inputs.value.stampDutyRate / 100);
+  const buyersAgentFee = inputs.value.propertyValue * (inputs.value.buyersAgentFeeRate / 100);
+  const acquisitionCosts = stampDuty + buyersAgentFee + inputs.value.legalCosts + inputs.value.capExReserve;
   return (inputs.value.propertyValue + acquisitionCosts) - inputs.value.loanAmount;
 });
 
@@ -235,12 +238,25 @@ onMounted(() => {
 });
 
 watch(() => props.initialResults, (newResults) => {
-    if(newResults) {
+    if (newResults) {
       const r = { ...newResults };
       if (typeof r.yearlyDCFJson === 'string') r.yearlyDCF = JSON.parse(r.yearlyDCFJson);
       if (typeof r.npvHistogramJson === 'string') r.npvHistogram = JSON.parse(r.npvHistogramJson);
       if (typeof r.irrHistogramJson === 'string') r.irrHistogram = JSON.parse(r.irrHistogramJson);
+      
+      // If we already have a probability curve and the new results don't, 
+      // check if the median value matches. If it does, we can keep our current curve.
+      // This prevents the "unloading" effect when the backend syncs partial results.
+      if (!r.probabilityCurve && results.value?.probabilityCurve && r.medianNPV === results.value.medianNPV) {
+          r.probabilityCurve = results.value.probabilityCurve;
+      }
+
       results.value = r;
+
+      // If we still don't have a curve and autoRun is on, trigger a run to generate it
+      if (!r.probabilityCurve && props.autoRun && !running.value) {
+          run();
+      }
     }
 }, { deep: true, immediate: true });
 
@@ -319,7 +335,8 @@ async function run() {
         correlationMatrix: correlationMatrix.value,
         detailedCashflows: props.detailedCashflow?.rows?.length ? transformGridToCashflows(props.detailedCashflow) : null
     };
-    results.value = runSimulation(simulationInputs, 5000, inputs.value.includeAcquisitionCost);
+    const res = runSimulation(simulationInputs, 5000, inputs.value.includeAcquisitionCost);
+    results.value = res;
   } catch (e) {
     console.error(e);
   } finally {

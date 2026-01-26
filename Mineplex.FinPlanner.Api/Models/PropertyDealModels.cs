@@ -28,6 +28,7 @@ namespace Mineplex.FinPlanner.Api.Models
         public decimal EstimatedValue { get; set; }
         public decimal StampDutyRate { get; set; } = 5.5m; // Default 5.5%
         public decimal LegalCosts { get; set; } = 15000m;
+        public decimal BuyersAgentFeeRate { get; set; } // % of Asking Price
         public decimal CapExReserve { get; set; }
 
         // Income Projections
@@ -48,6 +49,11 @@ namespace Mineplex.FinPlanner.Api.Models
         public decimal CapitalGrowthPercent { get; set; } = 3m; // Base growth
         public decimal CapitalGrowthVariancePercent { get; set; } = 2m; // ±2%
 
+        public decimal RentalGrowthPercent { get; set; } = 2.5m; // Default 2.5% inflation
+        public decimal VacancyGrowthPercent { get; set; } = 0m;
+        public decimal ManagementGrowthPercent { get; set; } = 0m;
+        public decimal OutgoingsGrowthPercent { get; set; } = 0m;
+
         // Risk/Analysis Parameters
         public decimal DiscountRate { get; set; } = 8m; // Default 8% discount rate for DCF
 
@@ -64,6 +70,7 @@ namespace Mineplex.FinPlanner.Api.Models
 
         // Navigation
         public ICollection<DealSimulationResult>? SimulationResults { get; set; }
+        public ICollection<DealStatusHistory>? StatusHistory { get; set; }
 
         public string? SpreadsheetOverridesJson { get; set; }
 

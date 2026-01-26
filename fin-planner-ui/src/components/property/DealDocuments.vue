@@ -29,8 +29,8 @@
     <div v-else class="documents-grid">
         <div v-for="doc in filteredDocuments" :key="doc.id" class="doc-card card" @click="previewDocument(doc)">
             <div class="doc-icon">
-                <svg v-if="doc.contentType?.includes('pdf')" xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
-                <svg v-else-if="doc.contentType?.includes('image')" xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 24 24" fill="none" stroke="#3b82f6" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                <svg v-if="doc.contentType?.toLowerCase().includes('pdf')" xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
+                <svg v-else-if="doc.contentType?.toLowerCase().includes('image')" xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 24 24" fill="none" stroke="#3b82f6" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
                 <svg v-else xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
             </div>
             <div class="doc-info">
@@ -42,7 +42,10 @@
                     <span v-for="tag in doc.tags.split(',')" :key="tag" class="tag-badge">{{ tag }}</span>
                 </div>
             </div>
-            <div class="doc-actions">
+            <div class="doc-actions flex gap-xs">
+                 <button @click.stop="downloadFile(doc)" class="btn-icon" title="Download">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                 </button>
                  <button @click.stop="deleteDocument(doc.id)" class="btn-icon text-danger" title="Delete">
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
                  </button>
@@ -60,7 +63,12 @@
                      <span class="tag-badge" v-if="selectedDoc?.tags">{{ selectedDoc.tags }}</span>
                 </div>
                 <div class="flex gap-sm">
-                    <button @click="downloadFile(selectedDoc)" class="btn btn-secondary btn-sm" :disabled="previewLoading">Download</button>
+                    <button @click="downloadFile(selectedDoc)" class="btn btn-secondary btn-sm" :disabled="previewLoading">
+                         <span class="flex items-center gap-xs">
+                             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                             Download
+                         </span>
+                    </button>
                     <button @click="closePreview" class="btn-close">×</button>
                 </div>
             </div>
@@ -69,8 +77,8 @@
                     <span class="spinner-lg mb-md"></span>
                     <p>Loading document...</p>
                 </div>
-                <iframe v-else-if="previewUrl && selectedDoc.contentType === 'application/pdf'" :src="previewUrl" width="100%" height="100%" frameborder="0"></iframe>
-                <img v-else-if="previewUrl && selectedDoc.contentType.includes('image')" :src="previewUrl" class="preview-image" />
+                <iframe v-else-if="previewUrl && selectedDoc.contentType?.toLowerCase().includes('pdf')" :src="previewUrl" width="100%" height="100%" frameborder="0"></iframe>
+                <img v-else-if="previewUrl && selectedDoc.contentType?.toLowerCase().includes('image')" :src="previewUrl" class="preview-image" />
                 <div v-else class="flex-center h-full flex-col">
                     <p>Preview not available for this file type.</p>
                     <button @click="downloadFile(selectedDoc)" class="btn btn-primary mt-md">Download File</button>
@@ -176,20 +184,37 @@ const closePreview = () => {
     selectedDoc.value = null;
 };
 
-const downloadFile = (doc) => {
-     // Trigger browser download by creating anchor with the BLOB URL
-     const link = document.createElement('a');
-     link.href = previewUrl.value;
-     link.download = doc.fileName;
-     link.click();
+const downloadFile = async (doc) => {
+     try {
+         // If we already have the URL from preview and it matches the doc, we can reuse it? 
+         // Actually, safer to just get it fresh or use existing logic if simpler.
+         // Let's implement robust download:
+         
+         const response = await api.get(`/propertydeals/${props.dealId}/documents/${doc.id}/download`, { responseType: 'blob' });
+         const blob = new Blob([response.data], { type: doc.contentType || 'application/octet-stream' });
+         const url = window.URL.createObjectURL(blob);
+         
+         const link = document.createElement('a');
+         link.href = url;
+         link.download = doc.fileName;
+         document.body.appendChild(link);
+         link.click();
+         document.body.removeChild(link);
+         window.URL.revokeObjectURL(url);
+     } catch (e) {
+         console.error("Download failed", e);
+         alert("Failed to download file");
+     }
 };
 
 const deleteDocument = async (id) => {
-    if(!confirm("Delete this document?")) return;
+    console.log("Delete requested for ID:", id);
+    // if(!confirm("Delete this document?")) return;
     try {
         await api.delete(`/propertydeals/${props.dealId}/documents/${id}`);
         documents.value = documents.value.filter(d => d.id !== id);
     } catch (e) {
+        console.error("Delete failed error details:", e);
         alert("Delete failed");
     }
 };
@@ -277,6 +302,18 @@ const formatDate = (d) => new Date(d).toLocaleDateString();
     height: 90vh;
     display: flex;
     flex-direction: column;
+}
+.modal-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: var(--z-modal-backdrop, 1000);
 }
 .preview-body {
     flex: 1;

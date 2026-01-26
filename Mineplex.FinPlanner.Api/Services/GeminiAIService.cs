@@ -9,6 +9,7 @@ namespace Mineplex.FinPlanner.Api.Services
         Task<AIRecommendation> AnalyzeHoldingAsync(Holding holding, string portfolioContext);
         Task<string?> LookupSymbolAsync(string assetName, string? market);
         Task<string> TestConnectionAsync();
+        Task<string> ChatWithAIAsync(string userMessage, string context);
     }
 
     public class GeminiAIService : IAIService
@@ -202,6 +203,54 @@ Return ONLY the symbol string (e.g., 'CBA.AX' or 'AAPL'). If you cannot find a c
             catch (Exception ex)
             {
                 return $"Exception occurred: {ex.Message}";
+            }
+        }
+        public async Task<string> ChatWithAIAsync(string userMessage, string context)
+        {
+            var apiKey = _configuration["Gemini:ApiKey"];
+            if (string.IsNullOrEmpty(apiKey)) return "AI API Key not configured";
+
+            var prompt = $@"
+System: You are a professional financial advisor assistant. Use the following context about the user's portfolio and retirement plans to answer their questions.
+Be helpful, professional, and explain the 'why' behind your advice. Always include a disclaimer that this is not personal financial advice.
+
+Context:
+{context}
+
+User's Question: {userMessage}
+";
+
+            var requestBody = new
+            {
+                contents = new[]
+                {
+                    new { parts = new[] { new { text = prompt } } }
+                }
+            };
+
+            var json = JsonSerializer.Serialize(requestBody);
+            var content = new StringContent(json, Encoding.UTF8, "application/json");
+
+            try
+            {
+                var response = await _httpClient.PostAsync($"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key={apiKey}", content);
+
+                if (response.IsSuccessStatusCode)
+                {
+                    var responseString = await response.Content.ReadAsStringAsync();
+                    using var doc = JsonDocument.Parse(responseString);
+                    var text = doc.RootElement.GetProperty("candidates")[0].GetProperty("content").GetProperty("parts")[0].GetProperty("text").GetString();
+
+                    return text ?? "No response from AI service";
+                }
+                else
+                {
+                    return "Error connecting to AI service";
+                }
+            }
+            catch
+            {
+                return "Failed to get AI response";
             }
         }
     }

@@ -239,10 +239,7 @@ export function runSingleIteration(inputs) {
     // Helper to extract Z for a specific variable
     const getZ = (name) => correlatedZ[variables.indexOf(name)];
 
-    // 1. Rent (Normal or Lognormal usually, supporting others)
-    // Legacy: randomWithVariance(estimatedGrossRent, rentVariancePercent)
-    // New: Use Distribution Settings if available, else Fallback.
-    const rentDist = inputs.distributions?.rent || { type: Distributions.NORMAL, mean: estimatedGrossRent, stdDev: estimatedGrossRent * (rentVariancePercent / 100) / 2 };
+
 
     // If we are using correlated Z, we must transform Z back to Distribution.
     // For Normal: mean + Z * stdDev
@@ -287,26 +284,32 @@ export function runSingleIteration(inputs) {
 
     // Construct Distribution Configs on the fly for legacy inputs if not provided
     // This maintains backward compatibility
-    const rentConfig = inputs.distributions?.rent || {
-        type: Distributions.NORMAL,
-        mean: estimatedGrossRent,
-        stdDev: estimatedGrossRent * (rentVariancePercent / 100) / 2
+    // Helper to merge distribution settings with base values
+    const createDistConfig = (baseDist, baseValue, defaultVariance) => {
+        const variance = baseDist?.variancePercent ?? defaultVariance; // Use nullish coalescing to allow 0
+        const type = baseDist?.type || Distributions.NORMAL;
+
+        // Calculate params based on type
+        // For Normal/Lognormal, we need mean/stdDev (or mu/sigma)
+        // We use baseValue as Mean.
+
+        return {
+            type,
+            mean: baseValue,
+            stdDev: baseValue * (variance / 100) / 2, // 2 sigma = 95% confidence
+            // For triangular/uniform, we might add min/max/mode logic here later if UI supports them
+            // For now, mapping variance% to min/max roughly:
+            min: baseValue * (1 - variance / 100),
+            max: baseValue * (1 + variance / 100),
+            mode: baseValue,
+            ...baseDist // Allow overrides if provided (e.g. specific mu/sigma)
+        };
     };
-    const vacancyConfig = inputs.distributions?.vacancy || {
-        type: Distributions.NORMAL,
-        mean: vacancyRatePercent,
-        stdDev: vacancyRatePercent * (vacancyVariancePercent / 100) / 2
-    };
-    const interestConfig = inputs.distributions?.interest || {
-        type: Distributions.NORMAL,
-        mean: interestRatePercent,
-        stdDev: interestRatePercent * (interestVariancePercent / 100) / 2
-    };
-    const growthConfig = inputs.distributions?.growth || {
-        type: Distributions.NORMAL,
-        mean: capitalGrowthPercent,
-        stdDev: capitalGrowthPercent * (capitalGrowthVariancePercent / 100) / 2
-    };
+
+    const rentConfig = createDistConfig(inputs.distributions?.rent, estimatedGrossRent, rentVariancePercent);
+    const vacancyConfig = createDistConfig(inputs.distributions?.vacancy, vacancyRatePercent, vacancyVariancePercent);
+    const interestConfig = createDistConfig(inputs.distributions?.interest, interestRatePercent, interestVariancePercent);
+    const growthConfig = createDistConfig(inputs.distributions?.growth, capitalGrowthPercent, capitalGrowthVariancePercent);
 
     // Calculate Actuals
     const actualRent = mapZToValue(getZ('rent'), rentConfig);
@@ -432,12 +435,17 @@ export function runSingleIteration(inputs) {
             }
 
             // Common growth logic for non-detailed views
-            if (year > 1) propertyValue *= (1 + actualGrowth / 100);
+            if (year > 1) {
+                propertyValue *= (1 + actualGrowth / 100);
+                // Safety guard: Caps property value at 100 Billion to prevent overflow/UI breaks
+                if (propertyValue > 100000000000) propertyValue = 100000000000;
+            }
         }
 
         // Handle Terminal Value separately to ensure Capital Growth applies to Property Value
         if (useDetailedCashflow && year > 1) {
             propertyValue *= (1 + actualGrowth / 100);
+            if (propertyValue > 100000000000) propertyValue = 100000000000;
         } else if (!useDetailedCashflow && year > 1 && year <= holdingPeriodYears) {
             // Already handled in standard block above
         }
@@ -518,12 +526,14 @@ export function runSimulation(rawInputs, iterations = 5000, includeAcquisitionCo
         outgoingsEstimate: Number(rawInputs.outgoingsEstimate) || 0,
         loanAmount: Number(rawInputs.loanAmount) || 0,
         interestRatePercent: Number(rawInputs.interestRatePercent) || 0,
-        capitalGrowthPercent: Number(rawInputs.capitalGrowthPercent) || 0,
-        holdingPeriodYears: Number(rawInputs.holdingPeriodYears) || 10,
-        rentVariancePercent: Number(rawInputs.rentVariancePercent) || 10,
-        vacancyVariancePercent: Number(rawInputs.vacancyVariancePercent) || 5,
-        interestVariancePercent: Number(rawInputs.interestVariancePercent) || 1,
-        capitalGrowthVariancePercent: Number(rawInputs.capitalGrowthVariancePercent) || 2,
+        // CLAMP growth to reasonable values to prevent overflow
+        capitalGrowthPercent: Math.min(Math.max(Number(rawInputs.capitalGrowthPercent) || 0, -20), 30),
+        // CLAMP holding period to reasonable bounds (1-50 years)
+        holdingPeriodYears: Math.min(Math.max(Number(rawInputs.holdingPeriodYears) || 10, 1), 50),
+        rentVariancePercent: Math.min(Number(rawInputs.rentVariancePercent) || 10, 50),
+        vacancyVariancePercent: Math.min(Number(rawInputs.vacancyVariancePercent) || 5, 50),
+        interestVariancePercent: Math.min(Number(rawInputs.interestVariancePercent) || 1, 20),
+        capitalGrowthVariancePercent: Math.min(Number(rawInputs.capitalGrowthVariancePercent) || 2, 20),
         discountRate: Number(rawInputs.discountRate) || 8,
         timeVarianceEarly: Number(rawInputs.timeVarianceEarly) || 0,
         timeVarianceLate: Number(rawInputs.timeVarianceLate) || 0

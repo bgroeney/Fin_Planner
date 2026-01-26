@@ -20,6 +20,7 @@
             :current-status="deal.status" 
             :loading="transitioning"
             @transition="handleLifecycleTransition"
+            @request-revert="handleRevertRequest"
          />
       </div>
 
@@ -75,250 +76,279 @@
     </div>
 
     <!-- Summary View (Edit Mode) -->
-    <div v-if="viewMode === 'summary'" class="workbench-grid">
-      <!-- Input Section -->
-      <section class="input-section">
-        <div class="section-header">
-           <h3 class="section-title">Deal Inputs</h3>
-           <div class="save-status">
-              <span v-if="saving" class="status-saving">
-                <span class="spinner-sm"></span> Saving...
-              </span>
-              <span v-else-if="lastSaved" class="status-saved">
-                ✓ Saved
-              </span>
-           </div>
-        </div>
-        
+    <div v-if="viewMode === 'summary'" class="workbench-grid-container">
+       <div class="workbench-toolbar">
+          <h3 class="section-title">Deal Assumptions</h3>
+          <div class="save-status">
+             <span v-if="saving" class="status-saving">
+               <span class="spinner-sm"></span> Saving...
+             </span>
+             <span v-else-if="lastSaved" class="status-saved">
+               ✓ Saved
+             </span>
+          </div>
+       </div>
+
+       <div class="bento-grid">
         <!-- Acquisition Costs -->
-        <div class="input-group">
-          <h4 class="group-title">Acquisition</h4>
-          <div class="input-row">
-            <label>Asking Price</label>
-            <div class="input-wrapper">
-              <span class="input-prefix">$</span>
-              <input type="number" :value="deal.askingPrice" @change="updateField('askingPrice', $event)" />
+        <section class="input-card glass-card">
+          <h4 class="card-title">Acquisition</h4>
+          <div class="card-content">
+            <div class="input-row">
+              <label>Asking Price</label>
+              <div class="input-wrapper">
+                <span class="input-prefix">$</span>
+                <input type="number" :value="deal.askingPrice" @change="updateField('askingPrice', $event)" />
+              </div>
+            </div>
+            <div class="input-row">
+              <label>Stamp Duty</label>
+              <div class="input-wrapper">
+                <input type="number" step="0.1" :value="deal.stampDutyRate" @change="updateField('stampDutyRate', $event)" />
+                <span class="input-suffix">%</span>
+              </div>
+            </div>
+            <div class="input-row">
+              <label>Buyers Agent</label>
+              <div class="input-wrapper">
+                <input type="number" step="0.1" :value="deal.buyersAgentFeeRate" @change="updateField('buyersAgentFeeRate', $event)" />
+                <span class="input-suffix">%</span>
+              </div>
+            </div>
+            <div class="input-row">
+              <label>Legal Costs</label>
+              <div class="input-wrapper">
+                <span class="input-prefix">$</span>
+                <input type="number" :value="deal.legalCosts" @change="updateField('legalCosts', $event)" />
+              </div>
+            </div>
+            <div class="input-row">
+              <label>CapEx Reserve</label>
+              <div class="input-wrapper">
+                <span class="input-prefix">$</span>
+                <input type="number" :value="deal.capExReserve" @change="updateField('capExReserve', $event)" />
+              </div>
+            </div>
+            <div class="summary-row">
+              <label>Total Cost</label>
+              <span class="summary-value">{{ formatCurrency(totalAcquisitionCost) }}</span>
             </div>
           </div>
-          <div class="input-row">
-            <label>Stamp Duty Rate</label>
-            <div class="input-wrapper">
-              <input type="number" step="0.1" :value="deal.stampDutyRate" @change="updateField('stampDutyRate', $event)" />
-              <span class="input-suffix">%</span>
-            </div>
-          </div>
-          <div class="input-row">
-            <label>Legal Costs</label>
-            <div class="input-wrapper">
-              <span class="input-prefix">$</span>
-              <input type="number" :value="deal.legalCosts" @change="updateField('legalCosts', $event)" />
-            </div>
-          </div>
-          <div class="input-row">
-            <label>CapEx Reserve</label>
-            <div class="input-wrapper">
-              <span class="input-prefix">$</span>
-              <input type="number" :value="deal.capExReserve" @change="updateField('capExReserve', $event)" />
-            </div>
-          </div>
-          <div class="input-row calculated">
-            <label>Total Cost</label>
-            <span class="calculated-value">{{ formatCurrency(totalAcquisitionCost) }}</span>
-          </div>
-        </div>
+        </section>
 
-        <!-- Income -->
-        <div class="input-group">
-          <h4 class="group-title">Income</h4>
-          <div class="input-row">
-            <label>Gross Rent (p.a.)</label>
-            <div class="input-wrapper with-variance">
-              <span class="input-prefix">$</span>
-              <input type="number" :value="deal.estimatedGrossRent" @change="updateField('estimatedGrossRent', $event)" />
-              <span class="variance-indicator" title="Uncertainty range">±{{ deal.rentVariancePercent }}%</span>
-            </div>
-          </div>
-          <div class="input-row">
-            <label class="flex-label">
-               <span>Vacancy / Lease</span>
-               <button class="btn-xs-toggle" @click="toggleLeaseMode">{{ deal.leaseDetailsJson ? 'Simple' : 'Detailed' }}</button>
-            </label>
-            
-            <!-- Simple Mode -->
-            <div v-if="!leaseDetails" class="input-wrapper with-variance">
-              <input type="number" step="0.5" :value="deal.vacancyRatePercent" @change="updateField('vacancyRatePercent', $event)" />
-              <span class="input-suffix">%</span>
-              <span class="variance-indicator" title="Uncertainty range">±{{ deal.vacancyVariancePercent }}%</span>
-            </div>
-          </div>
-          
-          <!-- Detailed Lease Mode -->
-          <div v-if="leaseDetails" class="detailed-subgroup">
-             <div class="input-row sub-row">
-                <label>Remaining Term</label>
-                <div class="input-wrapper">
-                   <input type="number" :value="leaseDetails.remainingTerm" @change="updateLeaseField('remainingTerm', $event)" class="w-full" />
-                   <span class="input-suffix">yrs</span>
-                </div>
-             </div>
-             <div class="input-row sub-row">
-                <label>Review Type</label>
-                <select :value="leaseDetails.reviewType" @change="updateLeaseField('reviewType', $event)" class="select-sm">
-                   <option value="fixed">Fixed %</option>
-                   <option value="cpi">CPI / Market</option>
-                </select>
-             </div>
-             <div v-if="leaseDetails.reviewType === 'fixed'" class="input-row sub-row">
-                <label>Fixed Increase</label>
-                <div class="input-wrapper">
-                   <input type="number" step="0.1" :value="leaseDetails.reviewValue" @change="updateLeaseField('reviewValue', $event)" />
-                   <span class="input-suffix">%</span>
-                </div>
-             </div>
-             <div class="input-row sub-row">
-                <label title="Expected vacancy after lease expiry">Vacancy Shift</label>
-                <div class="input-wrapper">
-                   <input type="number" :value="leaseDetails.vacancyDurationMonths" @change="updateLeaseField('vacancyDurationMonths', $event)" />
-                   <span class="input-suffix">mos</span>
-                </div>
-             </div>
-          </div>
-          <div class="input-row">
-            <label>Management Fee</label>
-            <div class="input-wrapper">
-              <input type="number" step="0.5" :value="deal.managementFeePercent" @change="updateField('managementFeePercent', $event)" />
-              <span class="input-suffix">%</span>
-            </div>
-          </div>
-          <div class="input-row">
-            <label>Outgoings (p.a.)</label>
-            <div class="input-wrapper">
-              <span class="input-prefix">$</span>
-              <input type="number" :value="deal.outgoingsEstimate" @change="updateField('outgoingsEstimate', $event)" />
-            </div>
-          </div>
-          <div class="input-row calculated">
-            <label>Net Operating Income</label>
-            <span class="calculated-value">{{ formatCurrency(calculatedNOI) }}</span>
-          </div>
-        </div>
-
-        <!-- Financing -->
-        <div class="input-group">
-          <h4 class="group-title">Financing</h4>
-          <div class="input-row">
-            <label class="flex-label">
-                <span>Loan Structure</span>
-                <button class="btn-xs-toggle" @click="toggleLoanMode">{{ loanDetails ? 'Simple' : 'Multi' }}</button>
-            </label>
-          </div>
-
-          <!-- Simple Loan Mode -->
-          <template v-if="!loanDetails || loanDetails.length === 0">
-              <div class="input-row">
-                <label>Loan Amount</label>
+        <!-- Income & Expenses -->
+        <section class="input-card glass-card">
+          <h4 class="card-title">Income & Expenses</h4>
+           <div class="card-header-row">
+              <span></span>
+              <span class="col-header">Value</span>
+              <span class="col-header">Growth %</span>
+           </div>
+           <div class="card-content">
+              <!-- Gross Rent -->
+              <div class="input-grid-row">
+                <label>Gross Rent</label>
                 <div class="input-wrapper">
                   <span class="input-prefix">$</span>
-                  <input type="number" :value="deal.loanAmount" @change="updateField('loanAmount', $event)" />
+                  <input type="number" :value="deal.estimatedGrossRent" @change="updateField('estimatedGrossRent', $event)" />
+                </div>
+                <div class="input-wrapper">
+                  <input type="number" step="0.5" :value="deal.rentalGrowthPercent" @change="updateField('rentalGrowthPercent', $event)" />
+                </div>
+              </div>
+
+              <!-- Vacancy -->
+              <div class="input-grid-row">
+                <label>Vacancy
+                   <button class="btn-xs-link" @click="toggleLeaseMode">{{ deal.leaseDetailsJson ? '(Detailed)' : '(Simple)' }}</button>
+                </label>
+                <template v-if="!leaseDetails">
+                  <div class="input-wrapper">
+                    <input type="number" step="0.5" :value="deal.vacancyRatePercent" @change="updateField('vacancyRatePercent', $event)" />
+                    <span class="input-suffix">%</span>
+                  </div>
+                  <div class="input-wrapper">
+                    <input type="number" step="0.5" :value="deal.vacancyGrowthPercent ?? 0" @change="updateField('vacancyGrowthPercent', $event)" />
+                  </div>
+                </template>
+                <template v-else>
+                    <div class="col-span-2 detailed-label">Configured via Details</div>
+                </template>
+              </div>
+
+              <!-- Detailed Lease Mode -->
+               <div v-if="leaseDetails" class="detailed-subgroup">
+                  <div class="input-row compact">
+                     <label>Term</label>
+                     <div class="input-wrapper xs"><input type="number" :value="leaseDetails.remainingTerm" @change="updateLeaseField('remainingTerm', $event)" /><span class="input-suffix">yrs</span></div>
+                  </div>
+                  <div class="input-row compact">
+                     <label>Review</label>
+                     <select :value="leaseDetails.reviewType" @change="updateLeaseField('reviewType', $event)" class="select-xs">
+                        <option value="fixed">Fixed</option>
+                        <option value="cpi">CPI</option>
+                     </select>
+                  </div>
+                  <div v-if="leaseDetails.reviewType === 'fixed'" class="input-row compact">
+                     <label>Rate</label>
+                     <div class="input-wrapper xs"><input type="number" step="0.1" :value="leaseDetails.reviewValue" @change="updateLeaseField('reviewValue', $event)" /><span class="input-suffix">%</span></div>
+                  </div>
+                  <div class="input-row compact">
+                     <label>Vac. Shift</label>
+                     <div class="input-wrapper xs"><input type="number" :value="leaseDetails.vacancyDurationMonths" @change="updateLeaseField('vacancyDurationMonths', $event)" /><span class="input-suffix">m</span></div>
+                  </div>
+               </div>
+
+              <!-- Outgoings -->
+              <div class="input-grid-row">
+                <label>Outgoings</label>
+                <div class="input-wrapper">
+                  <span class="input-prefix">$</span>
+                  <input type="number" :value="deal.outgoingsEstimate" @change="updateField('outgoingsEstimate', $event)" />
+                </div>
+                <div class="input-wrapper">
+                  <input type="number" step="0.5" :value="deal.outgoingsGrowthPercent ?? 0" @change="updateField('outgoingsGrowthPercent', $event)" />
+                </div>
+              </div>
+
+              <!-- Management -->
+              <div class="input-grid-row">
+                <label>Mgmt Fee</label>
+                <div class="input-wrapper">
+                  <input type="number" step="0.5" :value="deal.managementFeePercent" @change="updateField('managementFeePercent', $event)" />
+                  <span class="input-suffix">%</span>
+                </div>
+                 <div class="input-wrapper">
+                  <input type="number" step="0.5" :value="deal.managementGrowthPercent ?? 0" @change="updateField('managementGrowthPercent', $event)" />
+                </div>
+              </div>
+
+              <div class="summary-row">
+                <label>Net Operating Income</label>
+                <span class="summary-value">{{ formatCurrency(calculatedNOI) }}</span>
+              </div>
+           </div>
+        </section>
+
+        <!-- Financing -->
+        <section class="input-card glass-card">
+          <div class="card-header-flex">
+             <h4 class="card-title">Financing</h4>
+             <button class="btn-xs-link" @click="toggleLoanMode">{{ loanDetails ? 'Multi-Tranche' : 'Simple Loan' }}</button>
+          </div>
+          <div class="card-content">
+             <template v-if="!loanDetails || loanDetails.length === 0">
+                <div class="input-row">
+                  <label>Loan Amount</label>
+                  <div class="input-wrapper">
+                    <span class="input-prefix">$</span>
+                    <input type="number" :value="deal.loanAmount" @change="updateField('loanAmount', $event)" />
+                  </div>
+                </div>
+                <div class="input-row">
+                  <label>Interest Rate</label>
+                  <div class="input-wrapper">
+                    <input type="number" step="0.1" :value="deal.interestRatePercent" @change="updateField('interestRatePercent', $event)" />
+                    <span class="input-suffix">%</span>
+                  </div>
+                </div>
+                <div class="input-row">
+                   <label>Rate Variance (Risk)</label>
+                   <div class="input-wrapper">
+                      <span class="input-prefix">±</span>
+                      <input type="number" step="0.1" :value="deal.interestVariancePercent" @change="updateField('interestVariancePercent', $event)" />
+                      <span class="input-suffix">%</span>
+                   </div>
+                </div>
+             </template>
+             
+             <!-- Multi Tranche -->
+             <div v-else class="detailed-subgroup">
+                <div class="multi-loan-header">
+                   <span>Tranche</span>
+                   <span>Amount</span>
+                   <span>Rate</span>
+                   <span></span>
+                </div>
+                 <div v-for="(loan, idx) in loanDetails" :key="idx" class="loan-item-grid">
+                    <input type="text" v-model="loan.name" placeholder="Name" class="input-xs" @change="persistLoanDetails"/>
+                    <div class="input-wrapper xs"><input type="number" v-model.number="loan.amount" @change="persistLoanDetails" /></div>
+                    <div class="input-wrapper xs"><input type="number" step="0.1" v-model.number="loan.rate" @change="persistLoanDetails" /></div>
+                    <button class="btn-icon-xs text-danger" @click="removeLoan(idx)">×</button>
+                 </div>
+                 <button class="btn-xs-secondary full-width mt-sm" @click="addLoan">+ Add Tranche</button>
+                 
+                 <div class="loan-summary-mini">
+                    Avg Rate: {{ weightedAvgRate.toFixed(2) }}%
+                 </div>
+             </div>
+
+             <div class="summary-row">
+                <label>LVR</label>
+                <span class="summary-value" :class="{'text-warning': calculatedLVR > 65}">{{ calculatedLVR.toFixed(1) }}%</span>
+             </div>
+          </div>
+        </section>
+
+        <!-- Market & Projections -->
+        <section class="input-card glass-card">
+           <h4 class="card-title">Market & Projections</h4>
+           <div class="card-content">
+              <div class="input-row">
+                <label>Capital Growth</label>
+                <div class="input-wrapper">
+                  <input type="number" step="0.5" :value="deal.capitalGrowthPercent" @change="updateField('capitalGrowthPercent', $event)" />
+                  <span class="input-suffix">%</span>
                 </div>
               </div>
               <div class="input-row">
-                <label>Interest Rate</label>
-                <div class="input-wrapper with-variance">
-                  <input type="number" step="0.1" :value="deal.interestRatePercent" @change="updateField('interestRatePercent', $event)" />
+                  <label>Growth Variance</label>
+                  <div class="input-wrapper">
+                     <span class="input-prefix">±</span>
+                     <input type="number" step="0.5" :value="deal.capitalGrowthVariancePercent" @change="updateField('capitalGrowthVariancePercent', $event)" />
+                     <span class="input-suffix">%</span>
+                  </div>
+              </div>
+              <div class="input-row">
+                <label>Discount Rate</label>
+                <div class="input-wrapper">
+                  <input type="number" step="0.1" :value="deal.discountRate || 8" @change="updateField('discountRate', $event)" />
                   <span class="input-suffix">%</span>
-                  <span class="variance-indicator" title="Uncertainty range">±{{ deal.interestVariancePercent }}%</span>
                 </div>
               </div>
-          </template>
-
-          <!-- Operations for Multi-Loan -->
-          <div v-else class="detailed-subgroup">
-             <div v-for="(loan, idx) in loanDetails" :key="idx" class="loan-item">
-                <div class="loan-row">
-                   <input type="text" v-model="loan.name" placeholder="Tranche A" class="input-xs name-input" @change="persistLoanDetails"/>
-                   <button class="btn-icon-xs" @click="removeLoan(idx)" title="Remove">×</button>
+              <div class="input-row">
+                <label>Holding Period</label>
+                <div class="input-wrapper">
+                  <input type="number" min="1" max="30" :value="deal.holdingPeriodYears" @change="updateField('holdingPeriodYears', $event)" />
+                  <span class="input-suffix">yrs</span>
                 </div>
-                <div class="loan-row inputs">
-                    <div class="input-wrapper xs">
-                       <span class="input-prefix">$</span>
-                       <input type="number" v-model.number="loan.amount" @change="persistLoanDetails" />
-                    </div>
-                    <div class="input-wrapper xs">
-                       <input type="number" step="0.1" v-model.number="loan.rate" @change="persistLoanDetails" />
-                       <span class="input-suffix">%</span>
-                    </div>
-                </div>
-             </div>
-             <button class="btn-add-loan" @click="addLoan">+ Add Split</button>
-             
-             <!-- Summary -->
-             <div class="loan-summary">
-                <small>Total: {{ formatCurrency(totalLoanAmount) }} @ {{ weightedAvgRate.toFixed(2) }}%</small>
-             </div>
-          </div>
-          <div class="input-row calculated">
-            <label>LVR</label>
-            <span class="calculated-value">{{ calculatedLVR.toFixed(1) }}%</span>
-          </div>
-        </div>
-
-        <!-- Growth & Period -->
-        <div class="input-group">
-          <h4 class="group-title">Assumptions</h4>
-          <div class="input-row">
-            <label>Capital Growth</label>
-            <div class="input-wrapper with-variance">
-              <input type="number" step="0.5" :value="deal.capitalGrowthPercent" @change="updateField('capitalGrowthPercent', $event)" />
-              <span class="input-suffix">%</span>
-              <span class="variance-indicator" title="Uncertainty range">±{{ deal.capitalGrowthVariancePercent }}%</span>
-            </div>
-          </div>
-          <div class="input-row">
-            <label>Discount Rate</label>
-            <div class="input-wrapper">
-              <input type="number" step="0.1" :value="deal.discountRate || 8" @change="updateField('discountRate', $event)" />
-              <span class="input-suffix">%</span>
-            </div>
-          </div>
-          <div class="input-row">
-            <label>Interest Variance</label>
-            <div class="input-wrapper">
-              <input type="number" step="0.1" min="0" :value="deal.interestVariancePercent" @change="updateField('interestVariancePercent', $event)" />
-              <span class="input-suffix">±%</span>
-            </div>
-          </div>
-          <div v-if="deal.discountRate < deal.interestRatePercent" class="validation-error">
-             ⚠️ Discount ({{deal.discountRate}}%) should be ≥ Interest ({{deal.interestRatePercent}}%)
-          </div>
-          <div class="input-row">
-            <label>Holding Period</label>
-            <div class="input-wrapper">
-              <input type="number" min="1" max="30" :value="deal.holdingPeriodYears" @change="updateField('holdingPeriodYears', $event)" />
-              <span class="input-suffix">years</span>
-            </div>
-          </div>
-        </div>
-
-        <!-- Timing Risk moved to Risk Analysis tab -->
-      </section>
+              </div>
+           </div>
+        </section>
+      </div>
 
       <!-- Results Summary (Read Only) -->
-      <section class="results-section">
-          <div class="metrics-grid" v-if="simulationResults">
-            <div class="metric-card">
-              <span class="metric-label">Median NPV</span>
-              <span class="metric-value" :class="simulationResults.medianNPV >= 0 ? 'positive' : 'negative'">
-                {{ formatCurrency(simulationResults.medianNPV) }}
-              </span>
+      <section class="results-bar glass-card">
+          <div v-if="simulationResults" class="metrics-flex">
+            <div class="metric-item">
+               <span class="metric-label">Median NPV</span>
+               <span class="metric-value-lg" :class="simulationResults.medianNPV >= 0 ? 'text-success' : 'text-danger'">
+                 {{ formatCurrency(simulationResults.medianNPV) }}
+               </span>
             </div>
-            <div class="metric-card">
+            <div class="vertical-divider"></div>
+            <div class="metric-item">
                <span class="metric-label">Median IRR</span>
-               <span class="metric-value">{{ simulationResults.medianIRR.toFixed(1) }}%</span>
+               <span class="metric-value-lg">{{ simulationResults.medianIRR.toFixed(1) }}%</span>
+            </div>
+            <div class="vertical-divider"></div>
+            <div class="metric-item">
+               <span class="metric-label">Rec. Decision</span>
+               <span class="metric-tag" :class="getStatusClass(simulationResults.recommendedDecision)">{{ simulationResults.recommendedDecision }}</span>
             </div>
           </div>
-          <div class="no-results" v-else>
-             <p>Configure inputs and click "Update & Run" in the header to assess risk.</p>
+          <div v-else class="empty-metrics">
+             <span>Run simulation to see results</span>
           </div>
       </section>
     </div>
@@ -371,22 +401,105 @@
         <DealDocuments :deal-id="deal.id" />
     </div>
 
+    <!-- History Sidebar/Panel -->
+    <transition name="slide-fade">
+       <div v-if="showHistoryPanel" class="history-panel glass-card">
+          <div class="panel-header">
+             <h3>Status History</h3>
+             <button class="btn-close-sm" @click="showHistoryPanel = false">×</button>
+          </div>
+          <DealStatusHistory :history="statusHistory" :loading="historyLoading" />
+       </div>
+    </transition>
+
+    <!-- Revert Status Modal -->
+    <div v-if="showRevertModal" class="modal-backdrop" @click.self="showRevertModal = false">
+      <div class="modal revert-modal glass-card">
+        <div class="modal-header">
+          <h2>Revert Status</h2>
+          <button class="btn-close" @click="showRevertModal = false">×</button>
+        </div>
+        <div class="modal-body">
+          <p>Are you sure you want to revert the status to <strong>{{ revertTargetStatus }}</strong>?</p>
+          <div class="form-group">
+            <label>Reason for reverting (optional)</label>
+            <textarea 
+              v-model="transitionComment" 
+              class="form-control" 
+              rows="3" 
+              placeholder="e.g., Lease details were incorrect, need to re-evaluate..."
+            ></textarea>
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button class="btn btn-secondary" @click="showRevertModal = false">Cancel</button>
+          <button class="btn btn-warning" @click="confirmStatusChange" :disabled="transitioning">
+            <span v-if="transitioning" class="spinner-sm"></span>
+            {{ transitioning ? 'Reverting...' : 'Confirm Revert' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Advance Status Modal -->
+    <div v-if="showTransitionModal" class="modal-backdrop" @click.self="showTransitionModal = false">
+      <div class="modal transition-modal glass-card">
+        <div class="modal-header">
+          <h2>Update Status</h2>
+          <button class="btn-close" @click="showTransitionModal = false">×</button>
+        </div>
+        <div class="modal-body">
+          <p>Move stage to <strong>{{ transitionTargetStatus }}</strong>?</p>
+          <div class="form-group">
+            <label>Comment (optional)</label>
+            <textarea 
+              v-model="transitionComment" 
+              class="form-control" 
+              rows="3" 
+              placeholder="e.g., Offer accepted by vendor..."
+            ></textarea>
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button class="btn btn-secondary" @click="showTransitionModal = false">Cancel</button>
+          <button class="btn btn-primary" @click="confirmStatusChange" :disabled="transitioning">
+            <span v-if="transitioning" class="spinner-sm"></span>
+            {{ transitioning ? 'Updating...' : 'Confirm Update' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
   </div>
 </template>
 
 <script setup>
 import { ref, computed } from 'vue';
-import { formatCurrency as formatCurrencyUtil } from '../../services/monteCarloEngine';
+import { formatCurrency as formatCurrencyUtil, calculateNOI as calculateNOIUtil } from '../../services/monteCarloEngine';
+import api from '../../services/api';
 import MonteCarloChart from './MonteCarloChart.vue';
 import DecisionMatrix from './DecisionMatrix.vue';
 import CashflowSpreadsheet from './CashflowSpreadsheet.vue';
 import PropertyRiskAnalyzer from './PropertyRiskAnalyzer.vue';
 import LifecycleStepper from './LifecycleStepper.vue';
 import DealDocuments from './DealDocuments.vue';
+import DealStatusHistory from './DealStatusHistory.vue';
 
-const viewMode = ref('summary'); // Default to Summary for interactive analysis
+const viewMode = ref('summary'); 
 const spreadsheetData = ref(null);
+
+// Status Management
 const transitioning = ref(false);
+const showRevertModal = ref(false);
+const showTransitionModal = ref(false);
+const revertTargetStatus = ref('');
+const transitionTargetStatus = ref('');
+const transitionComment = ref('');
+
+// History Management
+const showHistoryPanel = ref(false);
+const statusHistory = ref([]);
+const historyLoading = ref(false);
 
 const props = defineProps({
   deal: { type: Object, required: true },
@@ -394,20 +507,17 @@ const props = defineProps({
   runningSimulation: { type: Boolean, default: false }
 });
 
+const emit = defineEmits(['update', 'run-simulation', 'record-decision', 'refresh']);
+
 // Save state tracking
 const saving = ref(false);
 const lastSaved = ref(false);
 let saveTimeout = null;
 
-// Watch for deal updates to show "Saving"
-// Since parent does the save, we can't know EXACTLY when api call finishes unless we add a prop.
-// But we can show immediate feedback on input.
 function triggerSaveFeedback() {
    saving.value = true;
    lastSaved.value = false;
    if (saveTimeout) clearTimeout(saveTimeout);
-   
-   // Fake it for UX responsiveness (optimistic)
    setTimeout(() => {
      saving.value = false;
      lastSaved.value = true;
@@ -415,89 +525,74 @@ function triggerSaveFeedback() {
    }, 800);
 }
 
-const emit = defineEmits(['update', 'run-simulation', 'record-decision']);
+// History 
+async function toggleHistory() {
+  showHistoryPanel.value = !showHistoryPanel.value;
+  if (showHistoryPanel.value) {
+    await fetchHistory();
+  }
+}
 
-// Computed calculations
-const totalAcquisitionCost = computed(() => {
-  const stampDuty = props.deal.askingPrice * (props.deal.stampDutyRate / 100);
-  return props.deal.askingPrice + stampDuty + props.deal.legalCosts + props.deal.capExReserve;
-});
+async function fetchHistory() {
+  if (!props.deal) return;
+  try {
+    historyLoading.value = true;
+    const response = await api.get(`/propertydeals/${props.deal.id}/status-history`);
+    statusHistory.value = response.data;
+  } catch (error) {
+    console.error('Failed to fetch history:', error);
+    // Fallback mock if endpoint missing yet
+    statusHistory.value = [];
+  } finally {
+    historyLoading.value = false;
+  }
+}
 
-const calculatedNOI = computed(() => {
-  const effectiveIncome = props.deal.estimatedGrossRent * (1 - props.deal.vacancyRatePercent / 100);
-  const managementCost = effectiveIncome * (props.deal.managementFeePercent / 100);
-  return effectiveIncome - managementCost - props.deal.outgoingsEstimate;
-});
+// Lifecycle Handlers
+function handleTransitionRequest(targetStatus) {
+   transitionTargetStatus.value = targetStatus;
+   transitionComment.value = '';
+   showTransitionModal.value = true;
+}
 
-const calculatedLVR = computed(() => {
-  return props.deal.askingPrice > 0 ? (props.deal.loanAmount / props.deal.askingPrice) * 100 : 0;
-});
+function handleRevertRequest(targetStatus) {
+    revertTargetStatus.value = targetStatus;
+    transitionTargetStatus.value = targetStatus; // Shared handling
+    transitionComment.value = '';
+    showRevertModal.value = true;
+}
 
-const parsedYearlyDCF = computed(() => {
-    // Legacy support or fallback if needed, mainly handled by PropertyRiskAnalyzer now
-    return null;
-});
-
-const simulationInputSource = computed(() => {
-    // If we have saved results with a snapshot, use that to show "What produced this graph"
-    if (props.simulationResults?.inputsSnapshotJson) {
-        try {
-            return JSON.parse(props.simulationResults.inputsSnapshotJson);
-        } catch (e) {
-            console.error("Failed to parse input snapshot", e);
+async function confirmStatusChange() {
+    if (!props.deal) return;
+    
+    try {
+        transitioning.value = true;
+        
+        await api.post(`/propertydeals/${props.deal.id}/status`, {
+            status: transitionTargetStatus.value,
+            comment: transitionComment.value
+        });
+        
+        // Success
+        showRevertModal.value = false;
+        showTransitionModal.value = false;
+        
+        // Refresh parent to get updated deal state
+        emit('refresh');
+        
+        // Also refresh history if open
+        if (showHistoryPanel.value) {
+           await fetchHistory();
         }
+        
+    } catch (error) {
+        console.error('Failed to update status:', error);
+        alert('Failed to update status. Please try again.');
+    } finally {
+        transitioning.value = false;
     }
-    // Fallback to current deal if no snapshot (e.g. first run)
-    return props.deal;
-});
-
-// Detect if current deal inputs differ from the snapshot
-const hasUnsavedChanges = computed(() => {
-    if (!props.simulationResults?.inputsSnapshotJson) return false;
-    // Simple check: compare Property Value & Rent as proxy
-    //Ideally we compare deep equality but that's heavy.
-    // Let's assume hitting "Update" in header syncs it.
-    return false; // TODO: Implement dirty check
-});
-
-// Methods
-function handleInputsUpdate(newInputs) {
-    // When inputs change in PropertyRiskAnalyzer, sync them to parent state updates list
-    // We update fields individually to trigger save on parent (AcquisitionPlanner) 
-    // or batch them if we had a batch update method.
-    // For now we map key inputs back to deal structure
-    
-    // Note: This matches the keys in PropertyDealsController UpdateDealRequest
-    const updates = {
-       askingPrice: newInputs.propertyValue, // Mapped from propertyValue
-       estimatedGrossRent: newInputs.estimatedGrossRent,
-       outgoingsEstimate: newInputs.outgoingsEstimate,
-       vacancyRatePercent: newInputs.vacancyRatePercent,
-       capitalGrowthPercent: newInputs.capitalGrowthPercent,
-       capitalGrowthVariancePercent: newInputs.capitalGrowthVariancePercent,
-       discountRate: newInputs.discountRate,
-       loanAmount: newInputs.loanAmount,
-       interestRatePercent: newInputs.interestRatePercent,
-       interestVariancePercent: newInputs.interestVariancePercent,
-       rentVariancePercent: newInputs.rentVariancePercent,
-       holdingPeriodYears: newInputs.holdingPeriodYears,
-       timeVarianceEarlyMonths: newInputs.timeVarianceEarly,
-       timeVarianceLateMonths: newInputs.timeVarianceLate
-    };
-    
-    emit('update', updates);
 }
 
-function handleLifecycleTransition(newStatus) {
-    transitioning.value = true;
-    // We emit update for 'status'. The parent handles the API call.
-    // However, for 'Acquired', we might want special logic.
-    // Assuming parent just saves the status update.
-    emit('update', { status: newStatus });
-    
-    // Optimistic toggle
-    setTimeout(() => transitioning.value = false, 1000); 
-}
 
 function updateField(field, event) {
   triggerSaveFeedback();
@@ -564,6 +659,28 @@ const weightedAvgRate = computed(() => {
     if (!loanDetails.value || totalLoanAmount.value === 0) return props.deal.interestRatePercent;
     const weightedSum = loanDetails.value.reduce((sum, loan) => sum + (loan.amount * loan.rate), 0);
     return weightedSum / totalLoanAmount.value;
+});
+
+const totalAcquisitionCost = computed(() => {
+    if (!props.deal) return 0;
+    const askingPrice = props.deal.askingPrice || 0;
+    const stampDuty = askingPrice * ((props.deal.stampDutyRate || 0) / 100);
+    return askingPrice + stampDuty + (props.deal.legalCosts || 0) + (props.deal.capExReserve || 0);
+});
+
+const calculatedNOI = computed(() => {
+    if (!props.deal) return 0;
+    return calculateNOIUtil(
+        props.deal.estimatedGrossRent || 0,
+        props.deal.vacancyRatePercent || 0,
+        props.deal.managementFeePercent || 0,
+        props.deal.outgoingsEstimate || 0
+    );
+});
+
+const calculatedLVR = computed(() => {
+    if (!props.deal || !props.deal.askingPrice) return 0;
+    return (totalLoanAmount.value / props.deal.askingPrice) * 100;
 });
 
 // Logic Methods
@@ -718,39 +835,314 @@ function formatCurrency(value) {
 }
 
 /* Grid Layout */
-.workbench-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--spacing-lg);
+.workbench-grid-container {
   padding: var(--spacing-lg);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
 }
 
-@media (max-width: 900px) {
-  .workbench-grid {
+.workbench-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--spacing-sm);
+}
+
+.bento-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--spacing-lg);
+}
+
+@media (max-width: 1100px) {
+  .bento-grid {
     grid-template-columns: 1fr;
   }
 }
 
-
-.section-header {
+/* Glass Cards */
+.input-card {
+  /* .glass-card class handles background/blur via global CSS */
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-lg);
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: var(--spacing-lg);
-  border-bottom: 1px solid var(--color-border);
+  flex-direction: column;
+  height: 100%;
+}
+
+.card-title {
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-wide);
+  color: var(--color-text-muted);
+  margin: 0 0 var(--spacing-lg) 0;
+  border-bottom: 1px solid var(--color-border-subtle);
   padding-bottom: var(--spacing-sm);
 }
 
-.section-header .section-title {
-  border-bottom: none;
-  margin-bottom: 0;
-  padding-bottom: 0;
+.card-header-flex {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--color-border-subtle);
+  padding-bottom: var(--spacing-sm);
+  margin-bottom: var(--spacing-lg);
 }
 
-.save-status {
-  font-size: var(--font-size-xs);
+.card-header-flex .card-title {
+  margin: 0;
+  border: none;
+  padding: 0;
+}
+
+.card-header-row {
+  display: grid;
+  grid-template-columns: 2fr 1.5fr 1fr;
+  gap: var(--spacing-md);
+  margin-bottom: var(--spacing-xs);
+  padding: 0 var(--spacing-sm);
+}
+
+.col-header {
+  font-size: 10px;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  font-weight: 600;
+  text-align: center;
+}
+
+.card-content {
+  display: flex;
+  flex-direction: column;
+  gap: 10px; /* Consistent dense spacing */
+  flex: 1;
+}
+
+/* Input Rows */
+.input-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  min-height: 36px;
+}
+
+.input-grid-row {
+  display: grid;
+  grid-template-columns: 2fr 1.5fr 1fr;
+  gap: var(--spacing-md);
+  align-items: center;
+  min-height: 36px;
+}
+
+.input-row label, .input-grid-row label {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  font-weight: 500;
   display: flex;
   align-items: center;
+  gap: 6px;
+}
+
+.input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.input-wrapper input {
+  width: 100%;
+  text-align: right;
+  padding: 6px 8px; /* Compact padding */
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-sm);
+  background: var(--color-bg-primary); /* Slightly distinct from card bg */
+  transition: all var(--transition-fast);
+}
+
+.input-wrapper input:focus {
+  border-color: var(--color-industrial-copper);
+  background: var(--color-bg-elevated);
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(180, 83, 9, 0.1);
+}
+
+.input-prefix,
+.input-suffix {
+  position: absolute;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  pointer-events: none;
+}
+
+.input-prefix { left: 8px; }
+.input-wrapper:has(.input-prefix) input { padding-left: 20px; }
+
+.input-suffix { right: 8px; }
+.input-wrapper:has(.input-suffix) input { padding-right: 24px; }
+
+/* Summary Rows */
+.summary-row {
+  margin-top: auto; /* Push to bottom */
+  padding-top: var(--spacing-md);
+  border-top: 1px solid var(--color-border-subtle);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.summary-row label {
+  font-weight: 600;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+}
+
+.summary-value {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: var(--font-size-base);
+  color: var(--color-industrial-copper);
+}
+
+/* Detailed Subgroups */
+.detailed-subgroup {
+  grid-column: 1 / -1;
+  background: rgba(0, 0, 0, 0.02);
+  border-radius: var(--radius-md);
+  padding: var(--spacing-md);
+  border: 1px solid var(--color-border-subtle);
+}
+
+.detailed-label {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  font-style: italic;
+  text-align: right;
+}
+
+.input-row.compact {
+  min-height: 28px;
+}
+
+.select-xs {
+  font-size: 11px;
+  padding: 2px 4px;
+  border-radius: 4px;
+  border: 1px solid var(--color-border);
+}
+
+/* Results Bar */
+.results-bar {
+  margin-top: var(--spacing-lg);
+  padding: var(--spacing-lg);
+  border-radius: var(--radius-lg);
+  /* glass-card applies style */
+}
+
+.metrics-flex {
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+}
+
+.metric-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.vertical-divider {
+  width: 1px;
+  height: 40px;
+  background: var(--color-border);
+}
+
+.metric-value-lg {
+  font-size: var(--font-size-2xl);
+  font-weight: 800;
+  font-family: var(--font-display);
+  line-height: 1;
+}
+
+.metric-tag {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+}
+
+/* Helper Buttons */
+.btn-xs-link {
+  background: none;
+  border: none;
+  color: var(--color-accent);
+  font-size: 11px;
+  cursor: pointer;
+  text-decoration: underline;
+  padding: 0;
+}
+
+.btn-xs-link:hover {
+  color: var(--color-accent-dark);
+}
+
+.btn-xs-secondary {
+  font-size: 11px;
+  padding: 4px;
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--color-text-secondary);
+}
+
+.btn-xs-secondary:hover {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+.metric-value-lg.text-success { color: var(--color-success); }
+.metric-value-lg.text-danger { color: var(--color-danger); }
+.text-warning { color: var(--color-warning); }
+.full-width { width: 100%; }
+.mt-sm { margin-top: var(--spacing-sm); }
+
+/* Multi-loan specific */
+.multi-loan-header {
+  display: grid;
+  grid-template-columns: 2fr 1.5fr 1fr 20px;
+  gap: 8px;
+  font-size: 10px;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.loan-item-grid {
+  display: grid;
+  grid-template-columns: 2fr 1.5fr 1fr 20px;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.loan-summary-mini {
+  text-align: right;
+  font-size: 10px;
+  color: var(--color-text-muted);
+  margin-top: 4px;
+}
+
+/* Save Status */
+.save-status {
+  font-size: var(--font-size-xs);
 }
 
 .status-saving {
@@ -774,205 +1166,12 @@ function formatCurrency(value) {
   animation: spin 0.8s linear infinite;
 }
 
-/* Input Groups */
-.input-group {
-  margin-bottom: var(--spacing-lg);
-}
-
-.group-title {
-  font-size: var(--font-size-xs);
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: var(--letter-spacing-wide);
-  color: var(--color-text-muted);
-  margin: 0 0 var(--spacing-sm) 0;
-}
-
-.input-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: var(--spacing-sm) 0;
-  border-bottom: 1px solid var(--color-border-subtle);
-}
-
-.input-row label {
-  font-size: var(--font-size-sm);
-  color: var(--color-text-secondary);
-}
-
-.input-wrapper {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-xs);
-}
-
-.input-wrapper input {
-  width: 120px;
-  text-align: right;
-  padding: var(--spacing-xs) var(--spacing-sm);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  font-family: var(--font-mono);
-}
-
-.input-wrapper input:focus {
-  border-color: var(--color-industrial-copper);
-  outline: none;
-}
-
-.input-prefix,
-.input-suffix {
-  font-size: var(--font-size-sm);
-  color: var(--color-text-muted);
-}
-
-.variance-indicator {
-  font-size: 10px;
-  color: var(--color-info);
-  background: rgba(59, 130, 246, 0.1);
-  padding: 2px 4px;
-  border-radius: var(--radius-sm);
-  cursor: help;
-}
-
-.alert-banner {
-  background: rgba(245, 158, 11, 0.1);
-  border: 1px solid rgba(245, 158, 11, 0.2);
-  color: var(--color-warning); 
-  padding: var(--spacing-sm) var(--spacing-md);
-  border-radius: var(--radius-md);
-  margin-bottom: var(--spacing-lg);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: var(--font-size-sm);
-}
-
-.input-row.calculated {
-  background: var(--color-bg-elevated);
-  padding: var(--spacing-sm);
-  margin: var(--spacing-sm) 0 0 0;
-  border-radius: var(--radius-md);
-  border: none;
-}
-
-.calculated-value {
-  font-weight: 600;
-  font-family: var(--font-mono);
-  color: var(--color-text-primary);
-}
-
-/* Results Section */
-.no-results {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: var(--spacing-2xl);
-  text-align: center;
-  color: var(--color-text-muted);
-  gap: var(--spacing-md);
-}
-
-.no-results svg {
-  opacity: 0.4;
-  animation: pulse 2s ease-in-out infinite;
-}
-
-@keyframes pulse {
-  0%, 100% { opacity: 0.4; }
-  50% { opacity: 0.6; }
-}
-
-.hint {
-  font-size: var(--font-size-xs);
-  color: var(--color-text-muted);
-}
-
-/* Metrics Grid */
-.metrics-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: var(--spacing-md);
-  margin-bottom: var(--spacing-lg);
-}
-
-.metric-card {
-  background: var(--color-bg-elevated);
-  padding: var(--spacing-md);
-  border-radius: var(--radius-md);
-  text-align: center;
-}
-
-.metric-label {
-  display: block;
-  font-size: var(--font-size-xs);
-  font-weight: 600;
-  text-transform: uppercase;
-  color: var(--color-text-muted);
-  margin-bottom: var(--spacing-xs);
-}
-
-.metric-value {
-  font-size: var(--font-size-xl);
-  font-weight: 700;
-  font-family: var(--font-mono);
-}
-
-.metric-value.positive { color: var(--color-success); }
-.metric-value.negative { color: var(--color-danger); }
-
-/* Percentile Summary */
-.percentile-summary {
-  display: flex;
-  justify-content: space-between;
-  margin: var(--spacing-lg) 0;
-  padding: var(--spacing-md);
-  background: var(--color-bg-elevated);
-  border-radius: var(--radius-md);
-}
-
-.percentile {
-  text-align: center;
-}
-
-.percentile-label {
-  display: block;
-  font-size: var(--font-size-xs);
-  color: var(--color-text-muted);
-  margin-bottom: var(--spacing-xs);
-}
-
-.percentile-value {
-  font-weight: 600;
-  font-family: var(--font-mono);
-}
-
-.percentile-value.positive { color: var(--color-success); }
-.percentile-value.negative { color: var(--color-danger); }
-
-/* Status Badges */
-.badge {
-  padding: 2px 8px;
-  border-radius: var(--radius-full);
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-}
-
-.status-draft { background: var(--color-bg-elevated); color: var(--color-text-muted); }
-.status-analyzing { background: rgba(59, 130, 246, 0.1); color: var(--color-info); }
-.status-buy { background: rgba(16, 185, 129, 0.1); color: var(--color-success); }
-.status-pass { background: var(--color-bg-elevated); color: var(--color-text-secondary); }
-.status-uneconomic { background: rgba(239, 68, 68, 0.1); color: var(--color-danger); }
-
-/* View Tabs */
+/* View Tabs (Retained) */
 .view-tabs {
   display: flex;
   border-bottom: 1px solid var(--color-border);
   padding: 0 var(--spacing-lg);
-  background: var(--color-bg-card);
+  background: transparent;
 }
 
 .view-tab {
@@ -985,131 +1184,8 @@ function formatCurrency(value) {
   font-size: var(--font-size-sm);
   font-weight: 500;
   color: var(--color-text-muted);
-}
-
-/* Detailed Controls */
-.flex-label {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    width: 100%;
-}
-
-.btn-xs-toggle {
-    font-size: 10px;
-    padding: 2px 6px;
-    border: 1px solid var(--color-border);
-    border-radius: 4px;
-    background: var(--color-bg-elevated);
-    cursor: pointer;
-}
-
-.btn-xs-toggle:hover {
-    border-color: var(--color-industrial-copper);
-    color: var(--color-industrial-copper);
-}
-
-.detailed-subgroup {
-    background: var(--color-bg-elevated);
-    padding: 8px 12px;
-    border-radius: 6px;
-    margin-bottom: 12px;
-    border-left: 2px solid var(--color-industrial-copper);
-}
-
-.sub-row {
-    border-bottom: 1px solid rgba(0,0,0,0.05) !important;
-    padding: 4px 0 !important;
-}
-
-.sub-row:last-child {
-    border-bottom: none !important;
-}
-
-.select-sm {
-    padding: 2px 4px;
-    font-size: 12px;
-    border: 1px solid var(--color-border);
-    border-radius: 4px;
-}
-
-.loan-item {
-    padding: 6px 0;
-    border-bottom: 1px solid rgba(0,0,0,0.05);
-}
-
-.loan-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 8px;
-    margin-bottom: 4px;
-}
-
-.loan-row.inputs {
-   margin-bottom: 0;
-}
-
-.input-xs {
-    padding: 2px 4px;
-    font-size: 11px;
-    border: 1px solid var(--color-border);
-    border-radius: 3px;
-}
-
-.name-input {
-    flex: 1;
-}
-
-.btn-icon-xs {
-    background: none;
-    border: none;
-    color: var(--color-text-muted);
-    cursor: pointer;
-    font-size: 14px;
-}
-
-.btn-icon-xs:hover {
-    color: var(--color-danger);
-}
-
-.btn-add-loan {
-    width: 100%;
-    text-align: center;
-    font-size: 11px;
-    padding: 4px;
-    margin-top: 4px;
-    background: none;
-    border: 1px dashed var(--color-border);
-    border-radius: 4px;
-    cursor: pointer;
-    color: var(--color-text-muted);
-}
-
-.btn-add-loan:hover {
-    border-color: var(--color-industrial-copper);
-    color: var(--color-industrial-copper);
-}
-
-.loan-summary {
-    text-align: right;
-    margin-top: 6px;
-    color: var(--color-text-muted);
-    font-size: 11px;
-}
-
-.input-wrapper.xs input {
-    width: 60px;
-    padding: 2px 4px;
-    font-size: 11px;
-    height: 24px;
-}
-
-
-.view-tab {
   cursor: pointer;
   border-bottom: 2px solid transparent;
-  margin-bottom: -1px;
   transition: all var(--transition-fast);
 }
 
@@ -1118,16 +1194,22 @@ function formatCurrency(value) {
 }
 
 .view-tab.active {
-  color: var(--color-industrial-copper);
-  border-bottom-color: var(--color-industrial-copper);
+  color: var(--color-accent);
+  border-bottom-color: var(--color-accent);
 }
 
-.view-tab svg {
-  opacity: 0.7;
+/* Section Header (retained for other views) */
+.section-header {
+   display: flex;
+   justify-content: space-between;
+   align-items: center;
+   margin-bottom: var(--spacing-sm);
 }
 
-.view-tab.active svg {
-  opacity: 1;
+.section-title {
+   font-size: var(--font-size-base);
+   font-weight: 600;
+   margin: 0;
 }
 
 /* Spreadsheet View */
@@ -1154,19 +1236,23 @@ function formatCurrency(value) {
     background: rgba(239, 68, 68, 0.1);
     border-radius: var(--radius-sm);
 }
+
 .risk-explanation {
     margin-top: var(--spacing-lg);
     background: var(--color-bg-elevated);
     padding: var(--spacing-lg);
     border-radius: var(--radius-md);
 }
+
 .risk-explanation h4 {
     margin-top: 0;
 }
+
 .risk-explanation ul {
     margin-bottom: 0;
     padding-left: var(--spacing-lg);
 }
+
 .text-danger { color: var(--color-danger); }
 .text-primary { color: var(--color-industrial-copper); }
 .text-success { color: var(--color-success); }
@@ -1186,5 +1272,19 @@ function formatCurrency(value) {
   height: 48px;
   border: 4px solid var(--color-border);
   border-top-color: var(--color-industrial-copper);
+}
+
+/* Immersive Mode Overrides */
+.immersive-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.workbench-container {
+  flex: 1;
+  overflow-y: auto;
+  padding-bottom: var(--spacing-2xl);
 }
 </style>

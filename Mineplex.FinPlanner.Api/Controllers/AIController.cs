@@ -46,11 +46,24 @@ namespace Mineplex.FinPlanner.Api.Controllers
             return Ok(recommendation);
         }
 
+        [HttpPost("chat")]
+        public async Task<ActionResult<object>> Chat([FromBody] ChatRequest request)
+        {
+            var result = await _aiService.ChatWithAIAsync(request.Message, request.Context);
+            return Ok(new { Response = result });
+        }
+
         [HttpGet("test")]
         public async Task<ActionResult<object>> TestAI()
         {
             var result = await _aiService.TestConnectionAsync();
             return Ok(new { Response = result });
         }
+    }
+
+    public class ChatRequest
+    {
+        public string Message { get; set; } = string.Empty;
+        public string Context { get; set; } = string.Empty;
     }
 }

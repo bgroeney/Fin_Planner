@@ -18,6 +18,7 @@ namespace Mineplex.FinPlanner.Api.Data
         public DbSet<AIRecommendation> AIRecommendations { get; set; }
         public DbSet<PerformanceSnapshot> PerformanceSnapshots { get; set; }
         public DbSet<TaxParcel> TaxParcels { get; set; }
+        public DbSet<Goal> Goals { get; set; }
 
         // Price System
         public DbSet<CurrentPrice> CurrentPrices { get; set; }
@@ -41,6 +42,30 @@ namespace Mineplex.FinPlanner.Api.Data
         // Property Deals (Acquisition Planner)
         public DbSet<PropertyDeal> PropertyDeals { get; set; }
         public DbSet<DealSimulationResult> DealSimulationResults { get; set; }
+        public DbSet<DealStatusHistory> DealStatusHistory { get; set; }
+
+        // Audit Log
+        public DbSet<AuditLog> AuditLogs { get; set; }
+
+        // Phase 2: Entity Structures
+        public DbSet<Models.Entities.PersonAccount> PersonAccounts { get; set; }
+        public DbSet<Models.Entities.SuperAccount> SuperAccounts { get; set; }
+        public DbSet<Models.Entities.PayrollIncome> PayrollIncomes { get; set; }
+        public DbSet<Models.Entities.Deduction> Deductions { get; set; }
+
+        public DbSet<Models.Entities.TrustAccount> TrustAccounts { get; set; }
+        public DbSet<Models.Entities.TrustBeneficiary> TrustBeneficiaries { get; set; }
+        public DbSet<Models.Entities.TrustIncome> TrustIncomes { get; set; }
+        public DbSet<Models.Entities.TrustDistribution> TrustDistributions { get; set; }
+
+        public DbSet<Models.Entities.CompanyAccount> CompanyAccounts { get; set; }
+        public DbSet<Models.Entities.Division7ALoan> Division7ALoans { get; set; }
+        public DbSet<Models.Entities.CompanyDividend> CompanyDividends { get; set; }
+
+        // Phase 3: Financial Independence & Strategy
+        public DbSet<Models.Retirement.RetirementScenario> RetirementScenarios { get; set; }
+        public DbSet<Models.Retirement.LifeEvent> LifeEvents { get; set; }
+        public DbSet<Models.Retirement.Liability> Liabilities { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -243,6 +268,101 @@ namespace Mineplex.FinPlanner.Api.Data
 
             modelBuilder.Entity<LeaseProfile>()
                 .HasIndex(lp => lp.LeaseEnd); // For vacancy queries
+
+            // Helper configuration for Goals (if User entity existed fully, we'd link it)
+            modelBuilder.Entity<Goal>()
+                .HasIndex(g => g.UserId);
+
+            // Audit Log Configuration
+            modelBuilder.Entity<AuditLog>()
+                .HasIndex(al => al.Timestamp);
+
+            modelBuilder.Entity<AuditLog>()
+                .HasIndex(al => new { al.EntityType, al.EntityId });
+
+            // Phase 2: Entity Structure Configurations
+
+            // PersonAccount
+            modelBuilder.Entity<Models.Entities.PersonAccount>()
+                .HasIndex(p => p.PortfolioId);
+
+            modelBuilder.Entity<Models.Entities.PersonAccount>()
+                .HasMany(p => p.SuperAccounts)
+                .WithOne(s => s.PersonAccount)
+                .HasForeignKey(s => s.PersonAccountId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<Models.Entities.PersonAccount>()
+                .HasMany(p => p.PayrollIncomes)
+                .WithOne(pi => pi.PersonAccount)
+                .HasForeignKey(pi => pi.PersonAccountId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<Models.Entities.PersonAccount>()
+                .HasMany(p => p.Deductions)
+                .WithOne(d => d.PersonAccount)
+                .HasForeignKey(d => d.PersonAccountId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // TrustAccount
+            modelBuilder.Entity<Models.Entities.TrustAccount>()
+                .HasIndex(t => t.PortfolioId);
+
+            modelBuilder.Entity<Models.Entities.TrustAccount>()
+                .HasMany(t => t.Beneficiaries)
+                .WithOne(b => b.TrustAccount)
+                .HasForeignKey(b => b.TrustAccountId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<Models.Entities.TrustAccount>()
+                .HasMany(t => t.Distributions)
+                .WithOne(d => d.TrustAccount)
+                .HasForeignKey(d => d.TrustAccountId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<Models.Entities.TrustAccount>()
+                .HasMany(t => t.TrustIncomes)
+                .WithOne(ti => ti.TrustAccount)
+                .HasForeignKey(ti => ti.TrustAccountId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<Models.Entities.TrustBeneficiary>()
+                .HasIndex(b => new { b.TrustAccountId, b.PersonAccountId });
+
+            modelBuilder.Entity<Models.Entities.TrustDistribution>()
+                .HasIndex(d => new { d.TrustAccountId, d.FiscalYear });
+
+            // CompanyAccount
+            modelBuilder.Entity<Models.Entities.CompanyAccount>()
+                .HasIndex(c => c.PortfolioId);
+
+            modelBuilder.Entity<Models.Entities.CompanyAccount>()
+                .HasMany(c => c.Division7ALoans)
+                .WithOne(l => l.CompanyAccount)
+                .HasForeignKey(l => l.CompanyAccountId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<Models.Entities.CompanyAccount>()
+                .HasMany(c => c.Dividends)
+                .WithOne(d => d.CompanyAccount)
+                .HasForeignKey(d => d.CompanyAccountId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<Models.Entities.Division7ALoan>()
+                .HasIndex(l => l.BorrowerId);
+
+            // Phase 3: Retirement & FI Configurations
+            modelBuilder.Entity<Models.Retirement.RetirementScenario>()
+                .HasIndex(rs => rs.PortfolioId);
+
+            modelBuilder.Entity<Models.Retirement.RetirementScenario>()
+                .HasMany(rs => rs.LifeEvents)
+                .WithOne()
+                .HasForeignKey(le => le.RetirementScenarioId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<Models.Retirement.Liability>()
+                .HasIndex(l => l.PortfolioId);
         }
     }
 }

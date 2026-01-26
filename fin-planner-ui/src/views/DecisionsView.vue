@@ -411,6 +411,11 @@ const saveDecision = async (asDraft) => {
         } else {
             // Edit
             await api.put(`/decisions/${currentDecision.value.id}`, payload); // Simplified DTO usage
+            
+            // If editing and user clicked "Submit", we need to explicitly trigger the submit action
+            if (!asDraft) {
+                await api.put(`/decisions/${currentDecision.value.id}/submit`);
+            }
         }
         
         closeModal();

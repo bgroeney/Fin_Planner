@@ -15,6 +15,32 @@
       </router-link>
     </section>
 
+    <!-- Performance Section (New) -->
+    <section v-if="!loading" class="performance-section animate-fade-in-up">
+      <div class="section-header-row">
+        <h2 class="section-title">Performance</h2>
+        <div class="benchmark-selector">
+          <label for="benchmark">Benchmark:</label>
+          <select id="benchmark" v-model="selectedBenchmark">
+            <option value="">None</option>
+            <option value="ASX200">ASX 200</option>
+            <option value="S&P500">S&P 500</option>
+            <option value="ALLORDS">All Ordinaries</option>
+          </select>
+        </div>
+      </div>
+      
+      <!-- We need to import PerformanceChart first, assumed available in components/reports -->
+      <PerformanceChart 
+        v-if="primaryPortfolioId" 
+        :portfolio-id="primaryPortfolioId" 
+        :benchmark="selectedBenchmark"
+      />
+      <div v-else class="empty-state-card card">
+        <p>Select a portfolio to view performance</p>
+      </div>
+    </section>
+
     <!-- Stats Grid -->
     <section v-if="!loading" class="stats-grid">
       <div class="stat-card card animate-fade-in-up stagger-1">
@@ -43,12 +69,9 @@
         <div class="stat-detail text-muted">Across all accounts</div>
       </div>
 
-      <div class="stat-card card animate-fade-in-up stagger-4">
-        <div class="stat-header">
-          <span class="stat-label">Pending Decisions</span>
-        </div>
-        <div class="stat-value">{{ pendingDecisions }}</div>
-        <div class="stat-detail text-muted">Awaiting review</div>
+      <!-- Replace Pending Decisions Stat with Goal Widget (spans 1 cell) -->
+      <div class="card animate-fade-in-up stagger-4" style="padding: 0; overflow: hidden;">
+        <GoalProgressWidget />
       </div>
     </section>
 
@@ -96,14 +119,19 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue';
 import { useAuthStore } from '../stores/auth';
+import { usePortfolioStore } from '../stores/portfolio';
 import api from '../services/api';
 import MoneyBoxLoader from '../components/MoneyBoxLoader.vue';
+import PerformanceChart from '../components/reports/PerformanceChart.vue';
+import GoalProgressWidget from '../components/goals/GoalProgressWidget.vue'; // New Import
 import { formatCurrency, formatDate } from '../utils/formatters';
 
 const authStore = useAuthStore();
+const portfolioStore = usePortfolioStore();
 
-const portfolios = ref([]);
-const loading = ref(true);
+const loading = computed(() => portfolioStore.loading);
+const portfolios = computed(() => portfolioStore.portfolios);
+const selectedBenchmark = ref('');
 
 const userName = computed(() => {
   const email = authStore.user?.email || 'User';
@@ -122,6 +150,10 @@ const totalValue = computed(() => {
 
 const portfolioCount = computed(() => portfolios.value.length);
 
+const primaryPortfolioId = computed(() => {
+  return portfolioStore.currentPortfolio?.id || null;
+});
+
 const assetCount = computed(() => {
   return portfolios.value.reduce((sum, p) => sum + (p.holdingCount || 0), 0);
 });
@@ -130,15 +162,7 @@ const pendingDecisions = ref(0);
 const changePercent = ref(2.34);
 
 const fetchData = async () => {
-  loading.value = true;
-  try {
-    const res = await api.get('/portfolios');
-    portfolios.value = res.data;
-  } catch (e) {
-    console.error('Failed to fetch dashboard data:', e);
-  } finally {
-    loading.value = false;
-  }
+  await portfolioStore.fetchPortfolios();
 };
 
 onMounted(fetchData);
@@ -147,6 +171,42 @@ onMounted(fetchData);
 <style scoped>
 .dashboard {
   max-width: 1200px;
+}
+
+/* Performance Section */
+.performance-section {
+  margin-bottom: var(--spacing-xl);
+}
+
+.section-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--spacing-md);
+}
+
+.benchmark-selector {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}
+
+.benchmark-selector select {
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-primary);
+  padding: 4px 8px;
+  border-radius: var(--radius-md);
+  outline: none;
+}
+
+.empty-state-card {
+  padding: var(--spacing-2xl);
+  text-align: center;
+  color: var(--color-text-muted);
+  background: var(--color-bg-elevated);
 }
 
 /* Welcome Section */

@@ -110,6 +110,12 @@
               <td class="sticky-col row-label child-label">
                 <span class="child-indent"></span>
                 {{ row.label }}
+                <span v-if="hasRowOverrides(row)" class="locked-badge" @click="unlockRow(row)" title="Row contains manual overrides. Click to reset.">
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                  </svg>
+                </span>
                 <button v-if="row.isDeletable" class="delete-row-btn" @click="deleteCustomRow(row.id)" title="Remove">×</button>
               </td>
               <td 
@@ -172,6 +178,12 @@
               <td class="sticky-col row-label">
                 <span class="row-indent" v-if="row.indent">{{ '  '.repeat(row.indent) }}</span>
                 {{ row.label }}
+                <span v-if="hasRowOverrides(row)" class="locked-badge" @click="unlockRow(row)" title="Row contains manual overrides. Click to reset.">
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                  </svg>
+                </span>
               </td>
               <td 
                 v-for="(cell, colIndex) in getRowCells(row)" 
@@ -359,6 +371,23 @@
         </div>
       </div>
     </div>
+
+    <!-- Reset Confirmation Modal -->
+    <div v-if="showResetConfirm" class="modal-backdrop" @click.self="showResetConfirm = false">
+      <div class="confirmation-modal card">
+        <div class="modal-header">
+          <h4>Confirm Unlock All</h4>
+          <button class="btn-close" @click="showResetConfirm = false">×</button>
+        </div>
+        <div class="modal-body">
+          <p>Are you sure you want to remove all manual overrides? This action cannot be undone and all cells will revert to their calculated values.</p>
+        </div>
+        <div class="modal-actions">
+          <button class="btn btn-secondary" @click="showResetConfirm = false">Cancel</button>
+          <button class="btn btn-danger" @click="confirmReset">Unlock & Reset</button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -398,6 +427,7 @@ const varianceTarget = ref({ label: '', context: '', rowId: '', cellIndex: -1 })
 const varianceValue = ref(10);
 const timeVarianceEarly = ref(0); // P10 - months early
 const timeVarianceLate = ref(3);  // P90 - months late
+const showResetConfirm = ref(false);
 
 // Helper to check if we're in monthly view
 const isMonthly = computed(() => granularity.value === 'months');
@@ -534,7 +564,7 @@ const flattenedRows = computed(() => {
     parentCategory: 'income',
     isEditable: true,
     baseValue: deal.estimatedGrossRent,
-    growth: 0.025
+    growth: (deal.rentalGrowthPercent !== undefined ? deal.rentalGrowthPercent : 2.5) / 100
   });
 
   const vacancyAmount = deal.estimatedGrossRent * (deal.vacancyRatePercent / 100);
@@ -545,7 +575,7 @@ const flattenedRows = computed(() => {
     parentCategory: 'income',
     isEditable: true,
     baseValue: vacancyAmount,
-    growth: 0.025,
+    growth: (deal.vacancyGrowthPercent ?? 0) / 100,
     invert: true
   });
 
@@ -563,12 +593,13 @@ const flattenedRows = computed(() => {
   rows.push({ id: 'expenses', label: 'Operating Expenses', isCategory: true, category: 'expenses' });
 
   // Outgoings - Expandable with children
+  const outgoingsGrowth = (deal.outgoingsGrowthPercent ?? 0) / 100;
   const outgoingsChildren = [
-    { id: 'councilRates', label: 'Council Rates', baseValue: deal.outgoingsEstimate * 0.35, growth: 0.03 },
-    { id: 'waterRates', label: 'Water Rates', baseValue: deal.outgoingsEstimate * 0.10, growth: 0.03 },
-    { id: 'insurance', label: 'Insurance', baseValue: deal.outgoingsEstimate * 0.20, growth: 0.05 },
-    { id: 'maintenance', label: 'Repairs & Maintenance', baseValue: deal.outgoingsEstimate * 0.25, growth: 0.03 },
-    { id: 'other', label: 'Other', baseValue: deal.outgoingsEstimate * 0.10, growth: 0.02 },
+    { id: 'councilRates', label: 'Council Rates', baseValue: deal.outgoingsEstimate * 0.35, growth: outgoingsGrowth },
+    { id: 'waterRates', label: 'Water Rates', baseValue: deal.outgoingsEstimate * 0.10, growth: outgoingsGrowth },
+    { id: 'insurance', label: 'Insurance', baseValue: deal.outgoingsEstimate * 0.20, growth: outgoingsGrowth },
+    { id: 'maintenance', label: 'Repairs & Maintenance', baseValue: deal.outgoingsEstimate * 0.25, growth: outgoingsGrowth },
+    { id: 'other', label: 'Other', baseValue: deal.outgoingsEstimate * 0.10, growth: outgoingsGrowth },
     // Add custom items
     ...customLineItems.value.filter(c => c.parentId === 'outgoings').map(c => ({
       id: c.id,
@@ -621,7 +652,7 @@ const flattenedRows = computed(() => {
     parentCategory: 'expenses',
     isEditable: true,
     baseValue: managementCost,
-    growth: 0.025,
+    growth: (deal.managementGrowthPercent ?? 0) / 100,
     invert: true
   });
 
@@ -782,6 +813,15 @@ function hasChildOverridesForPeriod(parentRow, colIndex) {
 
 function hasRowOverrides(row) {
   return Object.keys(cellOverrides).some(key => key.startsWith(`${row.id}-`) && cellOverrides[key]?.isOverride);
+}
+
+function unlockRow(row) {
+  // Remove all overrides for this specific row
+  Object.keys(cellOverrides).forEach(key => {
+    if (key.startsWith(`${row.id}-`)) {
+      delete cellOverrides[key];
+    }
+  });
 }
 
 function unlockParent(parentRow) {
@@ -1145,11 +1185,19 @@ watch(cellOverrides, (newVal) => {
 }, { deep: true });
 
 // Expose reset method
+// Expose reset method
 function resetAllOverrides() {
-  if (confirm('Are you sure you want to restore all cells to calculated values? This cannot be undone.')) {
-     Object.keys(cellOverrides).forEach(key => delete cellOverrides[key]);
-     // This will trigger the watch above and emit empty JSON, clearing backend
-  }
+  showResetConfirm.value = true;
+}
+
+function confirmReset() {
+  // Clear all overrides
+  Object.keys(cellOverrides).forEach(key => delete cellOverrides[key]);
+  
+  // Important: Emit changes immediately so parent updates (charts, etc)
+  emitChanges();
+  
+  showResetConfirm.value = false;
 }
 
 // Ensure overrides are valid numbers before calculating?
@@ -1221,6 +1269,7 @@ function resetAllOverrides() {
   overflow-x: auto;
   max-height: 600px;
   overflow-y: auto;
+  overscroll-behavior-x: none;
 }
 
 .spreadsheet-table {
@@ -1555,9 +1604,24 @@ function resetAllOverrides() {
 }
 
 .add-line-modal,
-.variance-modal {
+.variance-modal,
+.confirmation-modal {
   width: 400px;
   max-width: 90%;
+}
+
+.btn-danger {
+  background: var(--color-danger);
+  color: white;
+  border: none;
+  padding: var(--spacing-sm) var(--spacing-lg);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.btn-danger:hover {
+  filter: brightness(110%);
 }
 
 .modal-header {

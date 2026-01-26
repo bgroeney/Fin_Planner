@@ -40,7 +40,7 @@
         :key="p.id" 
         class="portfolio-card card animate-fade-in-up"
         :style="{ animationDelay: `${index * 0.05}s` }"
-        @click="$router.push(`/portfolio/${p.id}`)"
+        @click="selectPortfolio(p.id); $router.push(`/portfolio/${p.id}`)"
       >
         <div class="card-header">
           <h3>{{ p.name }}</h3>
@@ -109,11 +109,13 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, computed } from 'vue';
+import { usePortfolioStore } from '../stores/portfolio';
 import api from '../services/api';
 
-const portfolios = ref([]);
-const loading = ref(true);
+const portfolioStore = usePortfolioStore();
+const portfolios = computed(() => portfolioStore.portfolios);
+const loading = computed(() => portfolioStore.loading);
 const showCreate = ref(false);
 const shouldLoadDemoData = ref(false);
 const newPortfolioName = ref('');
@@ -128,24 +130,19 @@ const formatCurrency = (val) => {
 };
 
 const fetchPortfolios = async () => {
-  loading.value = true;
-  try {
-    const res = await api.get('/portfolios');
-    portfolios.value = res.data;
-  } catch (e) {
-    console.error('Failed to fetch portfolios:', e);
-  } finally {
-    loading.value = false;
-  }
+  await portfolioStore.fetchPortfolios();
+};
+
+const selectPortfolio = (id) => {
+  portfolioStore.setCurrentPortfolio(id);
+  // Navigation is handled by @click in template
 };
 
 const createPortfolio = async () => {
   if (!newPortfolioName.value.trim()) return;
   
-  loading.value = true;
   try {
     if (shouldLoadDemoData.value) {
-        // Now passing name to demo endpoint
         await api.post('/portfolios/demo', { name: newPortfolioName.value }); 
     } else {
         await api.post('/portfolios', { name: newPortfolioName.value });
@@ -154,11 +151,9 @@ const createPortfolio = async () => {
     showCreate.value = false;
     newPortfolioName.value = '';
     shouldLoadDemoData.value = false;
-    await fetchPortfolios();
+    await portfolioStore.fetchPortfolios();
   } catch (e) {
     console.error('Failed to create portfolio:', e);
-  } finally {
-    loading.value = false;
   }
 };
 

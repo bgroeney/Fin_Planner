@@ -55,6 +55,61 @@ const router = createRouter({
                     component: () => import('../views/ReportsView.vue')
                 },
                 {
+                    path: 'goals',
+                    name: 'goals',
+                    component: () => import('../views/GoalsView.vue')
+                },
+                {
+                    path: 'rebalancing',
+                    name: 'rebalancing',
+                    component: () => import('../views/RebalancingView.vue')
+                },
+                {
+                    path: 'dividends',
+                    name: 'dividends',
+                    component: () => import('../views/DividendCalendarView.vue')
+                },
+                {
+                    path: 'audit',
+                    name: 'audit',
+                    component: () => import('../views/AuditLogView.vue')
+                },
+                {
+                    path: 'entities',
+                    name: 'entities',
+                    component: () => import('../views/EntitiesView.vue')
+                },
+                {
+                    path: 'entities/person/:id',
+                    name: 'person-detail',
+                    component: () => import('../views/entities/PersonDetailView.vue')
+                },
+                {
+                    path: 'entities/trust/:id',
+                    name: 'trust-detail',
+                    component: () => import('../views/entities/TrustDetailView.vue')
+                },
+                {
+                    path: 'entities/company/:id',
+                    name: 'company-detail',
+                    component: () => import('../views/entities/CompanyDetailView.vue')
+                },
+                {
+                    path: 'tax-optimization',
+                    name: 'tax-optimization',
+                    component: () => import('../views/TaxOptimizerView.vue')
+                },
+                {
+                    path: 'financial-independence',
+                    name: 'financial-independence',
+                    component: () => import('../views/FinancialIndependenceView.vue')
+                },
+                {
+                    path: 'net-worth',
+                    name: 'net-worth',
+                    component: () => import('../views/NetWorthView.vue')
+                },
+                {
                     path: 'admin',
                     name: 'admin',
                     component: () => import('../views/AdminSettings.vue')

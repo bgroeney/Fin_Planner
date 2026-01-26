@@ -177,6 +177,55 @@ namespace Mineplex.FinPlanner.Api.Migrations
                     b.ToTable("AssetPriceSourceOverrides");
                 });
 
+            modelBuilder.Entity("Mineplex.FinPlanner.Api.Models.AuditLog", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("EntityId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("EntityName")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("EntityType")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("IpAddress")
+                        .HasColumnType("text");
+
+                    b.Property<string>("NewValues")
+                        .HasColumnType("text");
+
+                    b.Property<string>("OldValues")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("Timestamp")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UserEmail")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Timestamp");
+
+                    b.HasIndex("EntityType", "EntityId");
+
+                    b.ToTable("AuditLogs");
+                });
+
             modelBuilder.Entity("Mineplex.FinPlanner.Api.Models.CommercialProperty", b =>
                 {
                     b.Property<Guid>("Id")
@@ -312,6 +361,39 @@ namespace Mineplex.FinPlanner.Api.Migrations
                     b.ToTable("DealSimulationResults");
                 });
 
+            modelBuilder.Entity("Mineplex.FinPlanner.Api.Models.DealStatusHistory", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("ChangedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("ChangedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Comment")
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("DealId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("NewStatus")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("OldStatus")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DealId");
+
+                    b.ToTable("DealStatusHistory");
+                });
+
             modelBuilder.Entity("Mineplex.FinPlanner.Api.Models.Decision", b =>
                 {
                     b.Property<Guid>("Id")
@@ -400,6 +482,493 @@ namespace Mineplex.FinPlanner.Api.Migrations
                     b.ToTable("DecisionLogs");
                 });
 
+            modelBuilder.Entity("Mineplex.FinPlanner.Api.Models.Entities.CompanyAccount", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ABN")
+                        .HasColumnType("text");
+
+                    b.Property<string>("ACN")
+                        .HasColumnType("text");
+
+                    b.Property<string>("CompanyName")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<decimal>("FrankingAccountBalance")
+                        .HasColumnType("numeric");
+
+                    b.Property<DateTime>("IncorporationDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsBaseRateEntity")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid>("PortfolioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("RetainedProfits")
+                        .HasColumnType("numeric");
+
+                    b.Property<decimal>("TaxRate")
+                        .HasColumnType("numeric");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PortfolioId");
+
+                    b.ToTable("CompanyAccounts");
+                });
+
+            modelBuilder.Entity("Mineplex.FinPlanner.Api.Models.Entities.CompanyDividend", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("Amount")
+                        .HasColumnType("numeric");
+
+                    b.Property<Guid>("CompanyAccountId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("DeclarationDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<decimal>("FrankingCredits")
+                        .HasColumnType("numeric");
+
+                    b.Property<decimal>("FrankingPercentage")
+                        .HasColumnType("numeric");
+
+                    b.Property<DateTime>("PaymentDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CompanyAccountId");
+
+                    b.ToTable("CompanyDividends");
+                });
+
+            modelBuilder.Entity("Mineplex.FinPlanner.Api.Models.Entities.Deduction", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("Amount")
+                        .HasColumnType("numeric");
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("FiscalYear")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("IsEstimate")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid>("PersonAccountId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PersonAccountId");
+
+                    b.ToTable("Deductions");
+                });
+
+            modelBuilder.Entity("Mineplex.FinPlanner.Api.Models.Entities.Division7ALoan", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("BorrowerId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("BorrowerName")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("CompanyAccountId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<decimal>("CurrentBalance")
+                        .HasColumnType("numeric");
+
+                    b.Property<decimal>("InterestRate")
+                        .HasColumnType("numeric");
+
+                    b.Property<bool>("IsSecured")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime>("LoanDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("LoanTermYears")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal>("MinimumYearlyRepayment")
+                        .HasColumnType("numeric");
+
+                    b.Property<decimal>("PrincipalAmount")
+                        .HasColumnType("numeric");
+
+                    b.Property<decimal>("RepaidThisYear")
+                        .HasColumnType("numeric");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BorrowerId");
+
+                    b.HasIndex("CompanyAccountId");
+
+                    b.ToTable("Division7ALoans");
+                });
+
+            modelBuilder.Entity("Mineplex.FinPlanner.Api.Models.Entities.PayrollIncome", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Employer")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("FiscalYear")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal>("GrossSalary")
+                        .HasColumnType("numeric");
+
+                    b.Property<Guid>("PersonAccountId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("ReportableFringeBenefits")
+                        .HasColumnType("numeric");
+
+                    b.Property<decimal>("SalarySacrifice")
+                        .HasColumnType("numeric");
+
+                    b.Property<decimal>("SuperContribution")
+                        .HasColumnType("numeric");
+
+                    b.Property<decimal>("TaxWithheld")
+                        .HasColumnType("numeric");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PersonAccountId");
+
+                    b.ToTable("PayrollIncomes");
+                });
+
+            modelBuilder.Entity("Mineplex.FinPlanner.Api.Models.Entities.PersonAccount", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("DateOfBirth")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("FullName")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<bool>("HasPrivateHealthInsurance")
+                        .HasColumnType("boolean");
+
+                    b.Property<decimal>("MarginalTaxRate")
+                        .HasColumnType("numeric");
+
+                    b.Property<decimal>("MedicareLevyRate")
+                        .HasColumnType("numeric");
+
+                    b.Property<Guid>("PortfolioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("TaxFileNumber")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PortfolioId");
+
+                    b.ToTable("PersonAccounts");
+                });
+
+            modelBuilder.Entity("Mineplex.FinPlanner.Api.Models.Entities.SuperAccount", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("ConcessionalCapRemaining")
+                        .HasColumnType("numeric");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<decimal>("CurrentBalance")
+                        .HasColumnType("numeric");
+
+                    b.Property<decimal>("EmployerContributionYTD")
+                        .HasColumnType("numeric");
+
+                    b.Property<string>("FundName")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("InvestmentOption")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("MemberNumber")
+                        .HasColumnType("text");
+
+                    b.Property<decimal>("NonConcessionalCapRemaining")
+                        .HasColumnType("numeric");
+
+                    b.Property<Guid>("PersonAccountId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("PersonalContributionYTD")
+                        .HasColumnType("numeric");
+
+                    b.Property<DateTime>("PreservationDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<decimal>("SalarySacrificeYTD")
+                        .HasColumnType("numeric");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PersonAccountId");
+
+                    b.ToTable("SuperAccounts");
+                });
+
+            modelBuilder.Entity("Mineplex.FinPlanner.Api.Models.Entities.TrustAccount", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ABN")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("MustDistributeByYearEnd")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid>("PortfolioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("TrustDeedDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("TrustName")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("TrustType")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("TrusteeName")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PortfolioId");
+
+                    b.ToTable("TrustAccounts");
+                });
+
+            modelBuilder.Entity("Mineplex.FinPlanner.Api.Models.Entities.TrustBeneficiary", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("BeneficiaryName")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid?>("CompanyAccountId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsEligible")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid?>("PersonAccountId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Relationship")
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("TrustAccountId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CompanyAccountId");
+
+                    b.HasIndex("PersonAccountId");
+
+                    b.HasIndex("TrustAccountId", "PersonAccountId");
+
+                    b.ToTable("TrustBeneficiaries");
+                });
+
+            modelBuilder.Entity("Mineplex.FinPlanner.Api.Models.Entities.TrustDistribution", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("BeneficiaryId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<decimal>("DiscountCapitalGains")
+                        .HasColumnType("numeric");
+
+                    b.Property<int>("FiscalYear")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal>("FrankedDividends")
+                        .HasColumnType("numeric");
+
+                    b.Property<decimal>("FrankingCredits")
+                        .HasColumnType("numeric");
+
+                    b.Property<decimal>("NonDiscountCapitalGains")
+                        .HasColumnType("numeric");
+
+                    b.Property<DateTime>("ResolutionDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("TrustAccountId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("UnfrankedIncome")
+                        .HasColumnType("numeric");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BeneficiaryId");
+
+                    b.HasIndex("TrustAccountId", "FiscalYear");
+
+                    b.ToTable("TrustDistributions");
+                });
+
+            modelBuilder.Entity("Mineplex.FinPlanner.Api.Models.Entities.TrustIncome", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<decimal>("DiscountCapitalGains")
+                        .HasColumnType("numeric");
+
+                    b.Property<int>("FiscalYear")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal>("FrankedDividends")
+                        .HasColumnType("numeric");
+
+                    b.Property<decimal>("FrankingCredits")
+                        .HasColumnType("numeric");
+
+                    b.Property<decimal>("NonDiscountCapitalGains")
+                        .HasColumnType("numeric");
+
+                    b.Property<decimal>("RentalIncome")
+                        .HasColumnType("numeric");
+
+                    b.Property<Guid>("TrustAccountId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("UnfrankedIncome")
+                        .HasColumnType("numeric");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TrustAccountId");
+
+                    b.ToTable("TrustIncomes");
+                });
+
             modelBuilder.Entity("Mineplex.FinPlanner.Api.Models.FileUpload", b =>
                 {
                     b.Property<Guid>("Id")
@@ -462,6 +1031,42 @@ namespace Mineplex.FinPlanner.Api.Migrations
                     b.HasIndex("UploadedByUserId");
 
                     b.ToTable("FileUploads");
+                });
+
+            modelBuilder.Entity("Mineplex.FinPlanner.Api.Models.Goal", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<decimal>("CurrentAmount")
+                        .HasColumnType("numeric");
+
+                    b.Property<bool>("IsCompleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<decimal>("TargetAmount")
+                        .HasColumnType("numeric");
+
+                    b.Property<DateTime>("TargetDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("Goals");
                 });
 
             modelBuilder.Entity("Mineplex.FinPlanner.Api.Models.HistoricalPrice", b =>
@@ -774,6 +1379,9 @@ namespace Mineplex.FinPlanner.Api.Migrations
                     b.Property<string>("BuildingType")
                         .HasColumnType("text");
 
+                    b.Property<decimal>("BuyersAgentFeeRate")
+                        .HasColumnType("numeric");
+
                     b.Property<decimal>("CapExReserve")
                         .HasColumnType("numeric");
 
@@ -831,6 +1439,9 @@ namespace Mineplex.FinPlanner.Api.Migrations
                     b.Property<decimal>("ManagementFeePercent")
                         .HasColumnType("numeric");
 
+                    b.Property<decimal>("ManagementGrowthPercent")
+                        .HasColumnType("numeric");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasColumnType("text");
@@ -838,10 +1449,16 @@ namespace Mineplex.FinPlanner.Api.Migrations
                     b.Property<decimal>("OutgoingsEstimate")
                         .HasColumnType("numeric");
 
+                    b.Property<decimal>("OutgoingsGrowthPercent")
+                        .HasColumnType("numeric");
+
                     b.Property<Guid>("OwnerId")
                         .HasColumnType("uuid");
 
                     b.Property<decimal>("RentVariancePercent")
+                        .HasColumnType("numeric");
+
+                    b.Property<decimal>("RentalGrowthPercent")
                         .HasColumnType("numeric");
 
                     b.Property<string>("SpreadsheetOverridesJson")
@@ -856,6 +1473,9 @@ namespace Mineplex.FinPlanner.Api.Migrations
 
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<decimal>("VacancyGrowthPercent")
+                        .HasColumnType("numeric");
 
                     b.Property<decimal>("VacancyRatePercent")
                         .HasColumnType("numeric");
@@ -938,6 +1558,130 @@ namespace Mineplex.FinPlanner.Api.Migrations
                     b.HasIndex("PropertyId", "Date");
 
                     b.ToTable("PropertyValuations");
+                });
+
+            modelBuilder.Entity("Mineplex.FinPlanner.Api.Models.Retirement.Liability", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("InterestRate")
+                        .HasColumnType("numeric");
+
+                    b.Property<bool>("IsPaidOff")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime?>("LastCalculatedDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<decimal>("MonthlyRepayment")
+                        .HasColumnType("numeric");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("PortfolioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("PrincipalAmount")
+                        .HasColumnType("numeric");
+
+                    b.Property<decimal?>("RemainingBalance")
+                        .HasColumnType("numeric");
+
+                    b.Property<DateTime>("StartDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("TermMonths")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PortfolioId");
+
+                    b.ToTable("Liabilities");
+                });
+
+            modelBuilder.Entity("Mineplex.FinPlanner.Api.Models.Retirement.LifeEvent", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("Amount")
+                        .HasColumnType("numeric");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<bool>("IsRecurring")
+                        .HasColumnType("boolean");
+
+                    b.Property<int?>("RecurringFrequencyYears")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("RetirementScenarioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("YearOffset")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RetirementScenarioId");
+
+                    b.ToTable("LifeEvents");
+                });
+
+            modelBuilder.Entity("Mineplex.FinPlanner.Api.Models.Retirement.RetirementScenario", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<decimal>("ExpectedInflationRate")
+                        .HasColumnType("numeric");
+
+                    b.Property<decimal>("ExpectedReturnRate")
+                        .HasColumnType("numeric");
+
+                    b.Property<bool>("IncludeAgePension")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("PortfolioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("RetirementAge")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal>("RetirementExpenses")
+                        .HasColumnType("numeric");
+
+                    b.Property<decimal>("TargetAnnualIncome")
+                        .HasColumnType("numeric");
+
+                    b.Property<decimal>("Volatility")
+                        .HasColumnType("numeric");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PortfolioId");
+
+                    b.ToTable("RetirementScenarios");
                 });
 
             modelBuilder.Entity("Mineplex.FinPlanner.Api.Models.SystemSetting", b =>
@@ -1161,6 +1905,17 @@ namespace Mineplex.FinPlanner.Api.Migrations
                     b.Navigation("Deal");
                 });
 
+            modelBuilder.Entity("Mineplex.FinPlanner.Api.Models.DealStatusHistory", b =>
+                {
+                    b.HasOne("Mineplex.FinPlanner.Api.Models.PropertyDeal", "Deal")
+                        .WithMany("StatusHistory")
+                        .HasForeignKey("DealId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Deal");
+                });
+
             modelBuilder.Entity("Mineplex.FinPlanner.Api.Models.Decision", b =>
                 {
                     b.HasOne("Mineplex.FinPlanner.Api.Models.FileUpload", "FileUpload")
@@ -1176,6 +1931,155 @@ namespace Mineplex.FinPlanner.Api.Migrations
                     b.Navigation("FileUpload");
 
                     b.Navigation("Portfolio");
+                });
+
+            modelBuilder.Entity("Mineplex.FinPlanner.Api.Models.Entities.CompanyAccount", b =>
+                {
+                    b.HasOne("Mineplex.FinPlanner.Api.Models.Portfolio", "Portfolio")
+                        .WithMany()
+                        .HasForeignKey("PortfolioId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Portfolio");
+                });
+
+            modelBuilder.Entity("Mineplex.FinPlanner.Api.Models.Entities.CompanyDividend", b =>
+                {
+                    b.HasOne("Mineplex.FinPlanner.Api.Models.Entities.CompanyAccount", "CompanyAccount")
+                        .WithMany("Dividends")
+                        .HasForeignKey("CompanyAccountId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("CompanyAccount");
+                });
+
+            modelBuilder.Entity("Mineplex.FinPlanner.Api.Models.Entities.Deduction", b =>
+                {
+                    b.HasOne("Mineplex.FinPlanner.Api.Models.Entities.PersonAccount", "PersonAccount")
+                        .WithMany("Deductions")
+                        .HasForeignKey("PersonAccountId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("PersonAccount");
+                });
+
+            modelBuilder.Entity("Mineplex.FinPlanner.Api.Models.Entities.Division7ALoan", b =>
+                {
+                    b.HasOne("Mineplex.FinPlanner.Api.Models.Entities.PersonAccount", "Borrower")
+                        .WithMany()
+                        .HasForeignKey("BorrowerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Mineplex.FinPlanner.Api.Models.Entities.CompanyAccount", "CompanyAccount")
+                        .WithMany("Division7ALoans")
+                        .HasForeignKey("CompanyAccountId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Borrower");
+
+                    b.Navigation("CompanyAccount");
+                });
+
+            modelBuilder.Entity("Mineplex.FinPlanner.Api.Models.Entities.PayrollIncome", b =>
+                {
+                    b.HasOne("Mineplex.FinPlanner.Api.Models.Entities.PersonAccount", "PersonAccount")
+                        .WithMany("PayrollIncomes")
+                        .HasForeignKey("PersonAccountId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("PersonAccount");
+                });
+
+            modelBuilder.Entity("Mineplex.FinPlanner.Api.Models.Entities.PersonAccount", b =>
+                {
+                    b.HasOne("Mineplex.FinPlanner.Api.Models.Portfolio", "Portfolio")
+                        .WithMany()
+                        .HasForeignKey("PortfolioId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Portfolio");
+                });
+
+            modelBuilder.Entity("Mineplex.FinPlanner.Api.Models.Entities.SuperAccount", b =>
+                {
+                    b.HasOne("Mineplex.FinPlanner.Api.Models.Entities.PersonAccount", "PersonAccount")
+                        .WithMany("SuperAccounts")
+                        .HasForeignKey("PersonAccountId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("PersonAccount");
+                });
+
+            modelBuilder.Entity("Mineplex.FinPlanner.Api.Models.Entities.TrustAccount", b =>
+                {
+                    b.HasOne("Mineplex.FinPlanner.Api.Models.Portfolio", "Portfolio")
+                        .WithMany()
+                        .HasForeignKey("PortfolioId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Portfolio");
+                });
+
+            modelBuilder.Entity("Mineplex.FinPlanner.Api.Models.Entities.TrustBeneficiary", b =>
+                {
+                    b.HasOne("Mineplex.FinPlanner.Api.Models.Entities.CompanyAccount", "CompanyAccount")
+                        .WithMany()
+                        .HasForeignKey("CompanyAccountId");
+
+                    b.HasOne("Mineplex.FinPlanner.Api.Models.Entities.PersonAccount", "PersonAccount")
+                        .WithMany()
+                        .HasForeignKey("PersonAccountId");
+
+                    b.HasOne("Mineplex.FinPlanner.Api.Models.Entities.TrustAccount", "TrustAccount")
+                        .WithMany("Beneficiaries")
+                        .HasForeignKey("TrustAccountId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("CompanyAccount");
+
+                    b.Navigation("PersonAccount");
+
+                    b.Navigation("TrustAccount");
+                });
+
+            modelBuilder.Entity("Mineplex.FinPlanner.Api.Models.Entities.TrustDistribution", b =>
+                {
+                    b.HasOne("Mineplex.FinPlanner.Api.Models.Entities.TrustBeneficiary", "Beneficiary")
+                        .WithMany()
+                        .HasForeignKey("BeneficiaryId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Mineplex.FinPlanner.Api.Models.Entities.TrustAccount", "TrustAccount")
+                        .WithMany("Distributions")
+                        .HasForeignKey("TrustAccountId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Beneficiary");
+
+                    b.Navigation("TrustAccount");
+                });
+
+            modelBuilder.Entity("Mineplex.FinPlanner.Api.Models.Entities.TrustIncome", b =>
+                {
+                    b.HasOne("Mineplex.FinPlanner.Api.Models.Entities.TrustAccount", "TrustAccount")
+                        .WithMany("TrustIncomes")
+                        .HasForeignKey("TrustAccountId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("TrustAccount");
                 });
 
             modelBuilder.Entity("Mineplex.FinPlanner.Api.Models.FileUpload", b =>
@@ -1330,6 +2234,15 @@ namespace Mineplex.FinPlanner.Api.Migrations
                     b.Navigation("Property");
                 });
 
+            modelBuilder.Entity("Mineplex.FinPlanner.Api.Models.Retirement.LifeEvent", b =>
+                {
+                    b.HasOne("Mineplex.FinPlanner.Api.Models.Retirement.RetirementScenario", null)
+                        .WithMany("LifeEvents")
+                        .HasForeignKey("RetirementScenarioId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Mineplex.FinPlanner.Api.Models.TaxParcel", b =>
                 {
                     b.HasOne("Mineplex.FinPlanner.Api.Models.Asset", "Asset")
@@ -1380,9 +2293,41 @@ namespace Mineplex.FinPlanner.Api.Migrations
                     b.Navigation("Valuations");
                 });
 
+            modelBuilder.Entity("Mineplex.FinPlanner.Api.Models.Entities.CompanyAccount", b =>
+                {
+                    b.Navigation("Dividends");
+
+                    b.Navigation("Division7ALoans");
+                });
+
+            modelBuilder.Entity("Mineplex.FinPlanner.Api.Models.Entities.PersonAccount", b =>
+                {
+                    b.Navigation("Deductions");
+
+                    b.Navigation("PayrollIncomes");
+
+                    b.Navigation("SuperAccounts");
+                });
+
+            modelBuilder.Entity("Mineplex.FinPlanner.Api.Models.Entities.TrustAccount", b =>
+                {
+                    b.Navigation("Beneficiaries");
+
+                    b.Navigation("Distributions");
+
+                    b.Navigation("TrustIncomes");
+                });
+
             modelBuilder.Entity("Mineplex.FinPlanner.Api.Models.PropertyDeal", b =>
                 {
                     b.Navigation("SimulationResults");
+
+                    b.Navigation("StatusHistory");
+                });
+
+            modelBuilder.Entity("Mineplex.FinPlanner.Api.Models.Retirement.RetirementScenario", b =>
+                {
+                    b.Navigation("LifeEvents");
                 });
 #pragma warning restore 612, 618
         }

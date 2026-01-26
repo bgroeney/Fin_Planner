@@ -44,22 +44,23 @@ namespace Mineplex.FinPlanner.Api.Controllers
 
             var deals = await query
                 .OrderByDescending(d => d.CreatedAt)
-                .Select(d => new PropertyDealDto
-                {
-                    Id = d.Id,
-                    Name = d.Name,
-                    Address = d.Address,
-                    BuildingType = d.BuildingType,
-                    Status = d.Status,
-                    AskingPrice = d.AskingPrice,
-                    EstimatedGrossRent = d.EstimatedGrossRent,
-                    CapRate = d.AskingPrice > 0 ? (d.EstimatedGrossRent / d.AskingPrice) * 100 : 0,
-                    CreatedAt = d.CreatedAt,
-                    DecisionDate = d.DecisionDate
-                })
                 .ToListAsync();
 
-            return Ok(deals);
+            var dtos = deals.Select(d => new PropertyDealDto
+            {
+                Id = d.Id,
+                Name = d.Name,
+                Address = d.Address,
+                BuildingType = d.BuildingType,
+                Status = d.Status,
+                AskingPrice = d.AskingPrice,
+                EstimatedGrossRent = d.EstimatedGrossRent,
+                CapRate = d.AskingPrice > 0 ? (d.EstimatedGrossRent / d.AskingPrice) * 100 : 0,
+                CreatedAt = d.CreatedAt,
+                DecisionDate = d.DecisionDate
+            }).ToList();
+
+            return Ok(dtos);
         }
 
         /// <summary>
@@ -100,6 +101,7 @@ namespace Mineplex.FinPlanner.Api.Controllers
                 EstimatedValue = request.EstimatedValue,
                 StampDutyRate = request.StampDutyRate ?? 5.5m,
                 LegalCosts = request.LegalCosts ?? 15000m,
+                BuyersAgentFeeRate = request.BuyersAgentFeeRate ?? 0m,
                 CapExReserve = request.CapExReserve,
                 EstimatedGrossRent = request.EstimatedGrossRent,
                 VacancyRatePercent = request.VacancyRatePercent ?? 5m,
@@ -113,6 +115,10 @@ namespace Mineplex.FinPlanner.Api.Controllers
                 InterestVariancePercent = request.InterestVariancePercent ?? 1m,
                 CapitalGrowthPercent = request.CapitalGrowthPercent ?? 3m,
                 CapitalGrowthVariancePercent = request.CapitalGrowthVariancePercent ?? 2m,
+                RentalGrowthPercent = request.RentalGrowthPercent ?? 2.5m,
+                VacancyGrowthPercent = request.VacancyGrowthPercent ?? 0m,
+                ManagementGrowthPercent = request.ManagementGrowthPercent ?? 0m,
+                OutgoingsGrowthPercent = request.OutgoingsGrowthPercent ?? 0m,
                 DiscountRate = request.DiscountRate ?? 8m,
                 HoldingPeriodYears = request.HoldingPeriodYears ?? 10,
                 LeaseDetailsJson = request.LeaseDetailsJson,
@@ -147,6 +153,7 @@ namespace Mineplex.FinPlanner.Api.Controllers
             if (request.EstimatedValue.HasValue) deal.EstimatedValue = request.EstimatedValue.Value;
             if (request.StampDutyRate.HasValue) deal.StampDutyRate = request.StampDutyRate.Value;
             if (request.LegalCosts.HasValue) deal.LegalCosts = request.LegalCosts.Value;
+            if (request.BuyersAgentFeeRate.HasValue) deal.BuyersAgentFeeRate = request.BuyersAgentFeeRate.Value;
             if (request.CapExReserve.HasValue) deal.CapExReserve = request.CapExReserve.Value;
             if (request.EstimatedGrossRent.HasValue) deal.EstimatedGrossRent = request.EstimatedGrossRent.Value;
             if (request.VacancyRatePercent.HasValue) deal.VacancyRatePercent = request.VacancyRatePercent.Value;
@@ -160,6 +167,10 @@ namespace Mineplex.FinPlanner.Api.Controllers
             if (request.InterestVariancePercent.HasValue) deal.InterestVariancePercent = request.InterestVariancePercent.Value;
             if (request.CapitalGrowthPercent.HasValue) deal.CapitalGrowthPercent = request.CapitalGrowthPercent.Value;
             if (request.CapitalGrowthVariancePercent.HasValue) deal.CapitalGrowthVariancePercent = request.CapitalGrowthVariancePercent.Value;
+            if (request.RentalGrowthPercent.HasValue) deal.RentalGrowthPercent = request.RentalGrowthPercent.Value;
+            if (request.VacancyGrowthPercent.HasValue) deal.VacancyGrowthPercent = request.VacancyGrowthPercent.Value;
+            if (request.ManagementGrowthPercent.HasValue) deal.ManagementGrowthPercent = request.ManagementGrowthPercent.Value;
+            if (request.OutgoingsGrowthPercent.HasValue) deal.OutgoingsGrowthPercent = request.OutgoingsGrowthPercent.Value;
             if (request.DiscountRate.HasValue) deal.DiscountRate = request.DiscountRate.Value;
             if (request.HoldingPeriodYears.HasValue) deal.HoldingPeriodYears = request.HoldingPeriodYears.Value;
             if (request.SpreadsheetOverridesJson != null)
@@ -204,6 +215,42 @@ namespace Mineplex.FinPlanner.Api.Controllers
 
             await _db.SaveChangesAsync();
             return NoContent();
+        }
+
+        /// <summary>
+        /// Update deal status with optional comment/reason
+        /// </summary>
+        [HttpPost("{id}/status")]
+        public async Task<IActionResult> RecordStatusChange(Guid id, [FromBody] UpdateStatusRequest request)
+        {
+            var userId = GetUserId();
+            var deal = await _db.PropertyDeals.FirstOrDefaultAsync(d => d.Id == id && d.OwnerId == userId);
+
+            if (deal == null)
+                return NotFound();
+
+            var oldStatus = deal.Status;
+
+            // Update status
+            deal.Status = request.Status;
+            deal.UpdatedAt = DateTime.UtcNow;
+
+            // Create history record
+            var history = new DealStatusHistory
+            {
+                Id = Guid.NewGuid(),
+                DealId = id,
+                OldStatus = oldStatus,
+                NewStatus = request.Status,
+                Comment = request.Comment,
+                ChangedBy = userId,
+                ChangedAt = DateTime.UtcNow
+            };
+
+            _db.DealStatusHistory.Add(history);
+            await _db.SaveChangesAsync();
+
+            return Ok(deal);
         }
 
         /// <summary>
@@ -325,6 +372,7 @@ namespace Mineplex.FinPlanner.Api.Controllers
         public decimal EstimatedValue { get; set; }
         public decimal? StampDutyRate { get; set; }
         public decimal? LegalCosts { get; set; }
+        public decimal? BuyersAgentFeeRate { get; set; }
         public decimal CapExReserve { get; set; }
         public decimal EstimatedGrossRent { get; set; }
         public decimal? VacancyRatePercent { get; set; }
@@ -338,6 +386,10 @@ namespace Mineplex.FinPlanner.Api.Controllers
         public decimal? InterestVariancePercent { get; set; }
         public decimal? CapitalGrowthPercent { get; set; }
         public decimal? CapitalGrowthVariancePercent { get; set; }
+        public decimal? RentalGrowthPercent { get; set; }
+        public decimal? VacancyGrowthPercent { get; set; }
+        public decimal? ManagementGrowthPercent { get; set; }
+        public decimal? OutgoingsGrowthPercent { get; set; }
         public decimal? DiscountRate { get; set; }
         public int? HoldingPeriodYears { get; set; }
         public string? LeaseDetailsJson { get; set; }
@@ -354,6 +406,7 @@ namespace Mineplex.FinPlanner.Api.Controllers
         public decimal? EstimatedValue { get; set; }
         public decimal? StampDutyRate { get; set; }
         public decimal? LegalCosts { get; set; }
+        public decimal? BuyersAgentFeeRate { get; set; }
         public decimal? CapExReserve { get; set; }
         public decimal? EstimatedGrossRent { get; set; }
         public decimal? VacancyRatePercent { get; set; }
@@ -367,6 +420,10 @@ namespace Mineplex.FinPlanner.Api.Controllers
         public decimal? InterestVariancePercent { get; set; }
         public decimal? CapitalGrowthPercent { get; set; }
         public decimal? CapitalGrowthVariancePercent { get; set; }
+        public decimal? RentalGrowthPercent { get; set; }
+        public decimal? VacancyGrowthPercent { get; set; }
+        public decimal? ManagementGrowthPercent { get; set; }
+        public decimal? OutgoingsGrowthPercent { get; set; }
         public decimal? DiscountRate { get; set; }
         public int? HoldingPeriodYears { get; set; }
         public string? SpreadsheetOverridesJson { get; set; }
@@ -379,6 +436,12 @@ namespace Mineplex.FinPlanner.Api.Controllers
     {
         public required string Decision { get; set; } // Buy, Pass, Uneconomic
         public string? Rationale { get; set; }
+    }
+
+    public class UpdateStatusRequest
+    {
+        public required string Status { get; set; }
+        public string? Comment { get; set; }
     }
 
     public class SaveSimulationRequest

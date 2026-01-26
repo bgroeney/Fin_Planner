@@ -48,6 +48,10 @@ builder.Services.AddScoped<IStressTestEngine, MonteCarloService>();
 builder.Services.AddScoped<ITaxOptimizationService, TaxOptimizationService>();
 builder.Services.AddScoped<IPerformanceService, PerformanceService>();
 builder.Services.AddScoped<ICommercialPropertyService, CommercialPropertyService>();
+builder.Services.AddScoped<IMarketDataService, MarketDataService>();
+builder.Services.AddScoped<IAuditService, AuditService>();
+builder.Services.AddScoped<ITaxDistributionService, TaxDistributionService>();
+builder.Services.AddScoped<IRebalancingService, RebalancingService>();
 builder.Services.AddHttpClient();
 
 // Register Price Providers

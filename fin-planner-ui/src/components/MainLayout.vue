@@ -61,6 +61,68 @@
           </div>
           <span class="nav-label" v-if="!isCollapsed">Reports</span>
         </router-link>
+
+        <router-link to="/goals" class="nav-item" active-class="active" title="Goals" @click="isMobileMenuOpen = false">
+          <div class="nav-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+          </div>
+          <span class="nav-label" v-if="!isCollapsed">Goals</span>
+        </router-link>
+
+        <router-link to="/dividends" class="nav-item" active-class="active" title="Dividends" @click="isMobileMenuOpen = false">
+          <div class="nav-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="14" x2="8" y2="14.01"/><line x1="12" y1="14" x2="12" y2="14.01"/><line x1="16" y1="14" x2="16" y2="14.01"/><line x1="8" y1="18" x2="8" y2="18.01"/><line x1="12" y1="18" x2="12" y2="18.01"/></svg>
+          </div>
+          <span class="nav-label" v-if="!isCollapsed">Dividends</span>
+        </router-link>
+
+        <router-link to="/audit" class="nav-item" active-class="active" title="Audit Log" @click="isMobileMenuOpen = false">
+          <div class="nav-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg>
+          </div>
+          <span class="nav-label" v-if="!isCollapsed">Audit Log</span>
+        </router-link>
+
+        <div class="nav-divider" v-if="!isCollapsed"></div>
+        <div class="nav-section-label" v-if="!isCollapsed">TAX PLANNING</div>
+
+        <router-link to="/entities" class="nav-item" active-class="active" title="Entities" @click="isMobileMenuOpen = false">
+          <div class="nav-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          </div>
+          <span class="nav-label" v-if="!isCollapsed">Entities</span>
+        </router-link>
+
+        <router-link to="/tax-optimization" class="nav-item" active-class="active" title="Tax Optimizer" @click="isMobileMenuOpen = false">
+          <div class="nav-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>
+          </div>
+          <span class="nav-label" v-if="!isCollapsed">Tax Optimizer</span>
+        </router-link>
+
+        <div class="nav-divider" v-if="!isCollapsed"></div>
+        <div class="nav-section-label" v-if="!isCollapsed">STRATEGY</div>
+
+        <router-link to="/financial-independence" class="nav-item" active-class="active" title="Financial Independence" @click="isMobileMenuOpen = false">
+          <div class="nav-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+          </div>
+          <span class="nav-label" v-if="!isCollapsed">FI Planner</span>
+        </router-link>
+
+        <router-link to="/rebalancing" class="nav-item" active-class="active" title="Rebalancing" @click="isMobileMenuOpen = false">
+          <div class="nav-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 19l-7-7 7-7"/><path d="M4 12h16"/><path d="M13 19l7-7-7-7"/></svg>
+          </div>
+          <span class="nav-label" v-if="!isCollapsed">Rebalancing</span>
+        </router-link>
+
+        <router-link to="/net-worth" class="nav-item" active-class="active" title="Net Worth" @click="isMobileMenuOpen = false">
+          <div class="nav-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+          </div>
+          <span class="nav-label" v-if="!isCollapsed">Net Worth</span>
+        </router-link>
       </nav>
 
       <div class="sidebar-footer">
@@ -127,9 +189,11 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useAuthStore } from '../stores/auth';
+import { usePortfolioStore } from '../stores/portfolio';
 import { useRouter, useRoute } from 'vue-router';
 
 const authStore = useAuthStore();
+const portfolioStore = usePortfolioStore();
 const router = useRouter();
 const route = useRoute();
 
@@ -153,6 +217,10 @@ onMounted(() => {
     document.documentElement.setAttribute('data-theme', 'dark');
   }
   document.addEventListener('click', handleClickOutside);
+  
+  if (authStore.isAuthenticated) {
+    portfolioStore.fetchPortfolios();
+  }
 });
 
 onUnmounted(() => {
@@ -206,20 +274,24 @@ const handleClickOutside = (e) => {
 
 /* Sidebar */
 .sidebar {
-  width: 240px;
-  background: var(--color-bg-secondary);
-  border-right: 1px solid var(--color-border);
+  width: 260px; /* Slightly wider for better typography */
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border-right: 1px solid var(--glass-border);
   display: flex;
   flex-direction: column;
   padding: var(--spacing-lg);
-  transition: width 0.2s ease;
+  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
   height: 100vh;
+  z-index: var(--z-sticky);
 }
 
 .sidebar.collapsed {
-  width: 72px;
+  width: 80px;
   padding: var(--spacing-lg) var(--spacing-sm);
+  align-items: center;
 }
 
 /* Brand */
@@ -229,54 +301,62 @@ const handleClickOutside = (e) => {
   gap: var(--spacing-md);
   margin-bottom: var(--spacing-xl);
   padding-bottom: var(--spacing-lg);
-  border-bottom: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--color-border-subtle);
+  height: 48px;
 }
 
 .logo-mark {
-  width: 36px;
-  height: 36px;
-  background: var(--color-accent);
+  width: 40px;
+  height: 40px;
+  background: linear-gradient(135deg, var(--color-accent) 0%, var(--color-accent-dark) 100%);
   border-radius: var(--radius-md);
   display: flex;
   align-items: center;
   justify-content: center;
   color: white;
-  font-weight: 700;
-  font-size: var(--font-size-sm);
+  font-weight: 800;
+  font-size: var(--font-size-base);
+  box-shadow: var(--shadow-sm);
   flex-shrink: 0;
 }
 
 .brand-name {
   font-family: var(--font-display);
-  font-size: var(--font-size-lg);
-  font-weight: 700;
+  font-size: var(--font-size-xl);
+  font-weight: 800;
   color: var(--color-text-primary);
+  letter-spacing: -0.02em;
 }
 
 /* Navigation */
 .nav {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px; /* Slightly more breathing room */
   flex: 1;
   overflow-y: auto;
+  padding-right: 4px; /* Space for scrollbar */
 }
 
 .nav-item {
   display: flex;
   align-items: center;
   gap: var(--spacing-md);
-  padding: 10px 12px;
+  padding: 12px 16px;
   border-radius: var(--radius-md);
   color: var(--color-text-secondary);
   text-decoration: none;
-  transition: all var(--transition-fast);
+  transition: all var(--transition-base);
   cursor: pointer;
+  font-weight: 500;
+  border: 1px solid transparent;
 }
 
 .sidebar.collapsed .nav-item {
   justify-content: center;
-  padding: 10px;
+  padding: 12px;
+  width: 48px;
+  height: 48px;
 }
 
 .nav-icon {
@@ -284,6 +364,8 @@ const handleClickOutside = (e) => {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  color: var(--color-text-muted);
+  transition: color var(--transition-fast);
 }
 
 .nav-label {
@@ -292,21 +374,46 @@ const handleClickOutside = (e) => {
   white-space: nowrap;
 }
 
+.nav-divider {
+  height: 1px;
+  background: var(--color-border-subtle);
+  margin: var(--spacing-md) 0;
+}
+
+.nav-section-label {
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  color: var(--color-text-muted);
+  letter-spacing: var(--letter-spacing-wide);
+  padding: 0 var(--spacing-md);
+  margin-bottom: var(--spacing-xs);
+}
+
 .nav-item:hover {
   background: var(--color-bg-elevated);
   color: var(--color-text-primary);
+  border-color: var(--color-border-subtle);
+}
+
+.nav-item:hover .nav-icon {
+  color: var(--color-accent);
 }
 
 .nav-item.active {
-  background: var(--color-accent);
-  color: white;
+  background: rgba(59, 130, 246, 0.1); /* Subtle blue tint */
+  color: var(--color-accent);
+  border-color: rgba(59, 130, 246, 0.2);
+}
+
+.nav-item.active .nav-icon {
+  color: var(--color-accent);
 }
 
 /* Sidebar Footer */
 .sidebar-footer {
   margin-top: auto;
   padding-top: var(--spacing-lg);
-  border-top: 1px solid var(--color-border);
+  border-top: 1px solid var(--color-border-subtle);
   display: flex;
   flex-direction: column;
   gap: var(--spacing-sm);
@@ -329,6 +436,7 @@ const handleClickOutside = (e) => {
 .btn-collapse:hover {
   border-color: var(--color-accent);
   color: var(--color-accent);
+  background: var(--color-bg-elevated);
 }
 
 /* Main Content */
@@ -336,26 +444,34 @@ const handleClickOutside = (e) => {
   flex: 1;
   display: flex;
   flex-direction: column;
-  background: var(--color-bg-primary);
+  background: var(--color-bg-primary); /* Slate 50 background */
   overflow: hidden;
+  position: relative;
 }
 
-/* Header */
+/* Header - Floating Glass Effect */
 .header {
-  height: 64px;
-  background: var(--color-bg-secondary);
-  border-bottom: 1px solid var(--color-border);
+  height: 72px;
+  margin: var(--spacing-lg) var(--spacing-xl) 0; /* Floating margin */
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg); /* Rounded header */
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 var(--spacing-xl);
+  padding: 0 var(--spacing-lg);
   flex-shrink: 0;
+  z-index: 50;
+  box-shadow: var(--shadow-glass);
 }
 
 .page-title {
-  font-size: var(--font-size-lg);
-  font-weight: 600;
+  font-size: var(--font-size-xl);
+  font-weight: 700;
   margin: 0;
+  color: var(--color-text-primary);
 }
 
 .header-right {
@@ -372,8 +488,8 @@ const handleClickOutside = (e) => {
   align-items: center;
   justify-content: center;
   background: transparent;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
+  border: 1px solid transparent; /* Cleaner look */
+  border-radius: var(--radius-full);
   color: var(--color-text-secondary);
   cursor: pointer;
   transition: all var(--transition-fast);
@@ -381,8 +497,7 @@ const handleClickOutside = (e) => {
 
 .theme-toggle:hover {
   background: var(--color-bg-elevated);
-  color: var(--color-text-primary);
-  border-color: var(--color-accent);
+  color: var(--color-accent);
 }
 
 /* User Profile */
@@ -390,38 +505,43 @@ const handleClickOutside = (e) => {
   display: flex;
   align-items: center;
   gap: var(--spacing-sm);
-  padding: 6px 10px;
+  padding: 6px 8px 6px 6px;
   border-radius: var(--radius-full);
   cursor: pointer;
   transition: background var(--transition-fast);
   position: relative;
+  border: 1px solid transparent;
 }
 
 .user-profile:hover {
   background: var(--color-bg-elevated);
+  border-color: var(--color-border-subtle);
 }
 
 .avatar {
-  width: 32px;
-  height: 32px;
+  width: 36px;
+  height: 36px;
   background: var(--color-accent);
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: var(--font-size-xs);
+  font-size: var(--font-size-sm);
   font-weight: 600;
   color: white;
+  box-shadow: var(--shadow-sm);
 }
 
 .user-name {
   font-size: var(--font-size-sm);
-  font-weight: 500;
+  font-weight: 600;
   color: var(--color-text-primary);
 }
 
 .user-profile > svg {
   color: var(--color-text-muted);
+  width: 14px;
+  height: 14px;
 }
 
 /* User Dropdown */
@@ -429,35 +549,40 @@ const handleClickOutside = (e) => {
   position: absolute;
   top: calc(100% + 8px);
   right: 0;
-  width: 200px;
-  background: var(--color-bg-secondary);
-  border: 1px solid var(--color-border);
+  width: 220px;
+  background: var(--glass-bg);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--glass-border);
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-lg);
+  box-shadow: var(--shadow-xl);
   overflow: hidden;
   z-index: var(--z-dropdown);
+  padding: var(--spacing-xs);
 }
 
 .dropdown-header {
   padding: var(--spacing-md);
+  background: rgba(0,0,0,0.02);
+  margin: calc(var(--spacing-xs) * -1) calc(var(--spacing-xs) * -1) var(--spacing-xs);
+  border-bottom: 1px solid var(--color-border-subtle);
 }
 
 .dropdown-email {
-  font-size: var(--font-size-sm);
-  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+  font-weight: 500;
 }
 
 .dropdown-divider {
-  height: 1px;
-  background: var(--color-border);
+  display: none; /* Handled by padding/margin */
 }
 
 .dropdown-item {
   width: 100%;
   display: flex;
   align-items: center;
-  gap: var(--spacing-sm);
-  padding: var(--spacing-md);
+  gap: var(--spacing-md);
+  padding: 10px var(--spacing-md);
   border: none;
   background: transparent;
   color: var(--color-text-secondary);
@@ -465,10 +590,12 @@ const handleClickOutside = (e) => {
   cursor: pointer;
   transition: all var(--transition-fast);
   text-align: left;
+  border-radius: var(--radius-md);
 }
 
 .dropdown-item:hover {
   background: var(--color-bg-elevated);
+  color: var(--color-text-primary);
 }
 
 .dropdown-item-danger {
@@ -476,7 +603,8 @@ const handleClickOutside = (e) => {
 }
 
 .dropdown-item-danger:hover {
-  background: rgba(220, 38, 38, 0.1);
+  background: rgba(220, 38, 38, 0.05);
+  color: var(--color-danger);
 }
 
 /* Content */
@@ -488,18 +616,18 @@ const handleClickOutside = (e) => {
 
 /* Transitions */
 .fade-enter-active, .fade-leave-active {
-  transition: opacity 0.15s ease;
+  transition: opacity 0.2s ease;
 }
 .fade-enter-from, .fade-leave-to {
   opacity: 0;
 }
 
 .dropdown-enter-active, .dropdown-leave-active {
-  transition: all 0.15s ease;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 .dropdown-enter-from, .dropdown-leave-to {
   opacity: 0;
-  transform: translateY(-4px);
+  transform: translateY(-8px) scale(0.95);
 }
 </style>
 
@@ -513,39 +641,21 @@ const handleClickOutside = (e) => {
     left: 0;
     z-index: 1000;
     transform: translateX(-100%);
-    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    background: var(--color-bg-secondary); /* Solid background for mobile */
   }
 
   .sidebar.mobile-open {
     transform: translateX(0);
   }
 
-  .sidebar-backdrop {
-    position: fixed;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.5);
-    z-index: 999;
-    backdrop-filter: blur(2px);
-  }
-
-  .mobile-menu-toggle {
-    display: flex !important;
-  }
-
   .header {
+    margin: 0;
+    border-radius: 0;
+    border-top: none;
+    border-left: none;
+    border-right: none;
+    height: 64px;
     padding: 0 var(--spacing-md);
-  }
-
-  .page-title {
-    font-size: var(--font-size-base);
-  }
-
-  .user-name {
-    display: none;
-  }
-
-  .content {
-    padding: var(--spacing-md);
   }
 }
 
@@ -557,5 +667,11 @@ const handleClickOutside = (e) => {
   padding: 8px;
   cursor: pointer;
   margin-right: var(--spacing-sm);
+}
+
+@media (max-width: 768px) {
+  .mobile-menu-toggle {
+    display: flex;
+  }
 }
 </style>

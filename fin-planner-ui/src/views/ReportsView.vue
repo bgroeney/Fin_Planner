@@ -15,6 +15,16 @@
             </option>
           </select>
         </div>
+        <div class="export-dropdown" v-if="selectedPortfolioId">
+          <button class="btn btn-secondary" @click="showExportMenu = !showExportMenu">
+            Export Data
+            <span class="dropdown-arrow">▾</span>
+          </button>
+          <div v-if="showExportMenu" class="dropdown-menu">
+            <button @click="exportData('csv')">Download CSV</button>
+            <button @click="exportData('json')">Download JSON</button>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -82,6 +92,7 @@ const portfolios = ref([]);
 const selectedPortfolioId = ref(null);
 const loading = ref(true);
 const currentTab = ref('performance');
+const showExportMenu = ref(false);
 
 const tabs = [
   { id: 'performance', label: 'Performance' },
@@ -100,6 +111,42 @@ const loadPortfolios = async () => {
     console.error('Failed to load portfolios', e);
   } finally {
     loading.value = false;
+  }
+};
+
+const exportData = async (format) => {
+  showExportMenu.value = false;
+  try {
+    const response = await api.get(`/reports/export/${selectedPortfolioId.value}?format=${format}`, {
+      responseType: format === 'csv' ? 'blob' : 'json'
+    });
+    
+    if (format === 'csv') {
+      // Download CSV file
+      const blob = new Blob([response.data], { type: 'text/csv' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `portfolio_export_${new Date().toISOString().split('T')[0]}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      a.remove();
+    } else {
+      // Download JSON file
+      const blob = new Blob([JSON.stringify(response.data, null, 2)], { type: 'application/json' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `portfolio_export_${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      a.remove();
+    }
+  } catch (e) {
+    console.error('Failed to export data', e);
+    alert('Failed to export data. Please try again.');
   }
 };
 
@@ -224,5 +271,50 @@ onMounted(loadPortfolios);
   .tab-btn {
     white-space: nowrap;
   }
+}
+
+/* Export Dropdown */
+.controls {
+  display: flex;
+  gap: var(--spacing-md);
+  align-items: center;
+}
+
+.export-dropdown {
+  position: relative;
+}
+
+.dropdown-arrow {
+  margin-left: var(--spacing-xs);
+}
+
+.dropdown-menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 4px;
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  z-index: 100;
+  min-width: 150px;
+  overflow: hidden;
+}
+
+.dropdown-menu button {
+  display: block;
+  width: 100%;
+  padding: var(--spacing-sm) var(--spacing-md);
+  text-align: left;
+  background: none;
+  border: none;
+  color: var(--color-text-primary);
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+
+.dropdown-menu button:hover {
+  background: var(--color-bg-elevated);
 }
 </style>

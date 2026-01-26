@@ -6,7 +6,7 @@ namespace Mineplex.FinPlanner.Api.Services
     {
         Task<decimal> GetPriceAsync(Models.Asset asset);
         Task<Dictionary<string, decimal>> GetPricesAsync(IEnumerable<Models.Asset> assets);
-        Task<List<HistoricalPriceDto>> GetHistoricalPriceDataAsync(Models.Asset asset, DateTime from, DateTime to);
+        Task<List<HistoricalPriceDto>> GetBenchmarkDataAsync(string symbol, DateTime startDate, DateTime endDate);
     }
 
     public class MarketDataService : IMarketDataService
@@ -16,6 +16,40 @@ namespace Mineplex.FinPlanner.Api.Services
         public MarketDataService(ILogger<MarketDataService> logger)
         {
             _logger = logger;
+        }
+
+        public async Task<List<HistoricalPriceDto>> GetBenchmarkDataAsync(string symbol, DateTime startDate, DateTime endDate)
+        {
+            var history = new List<HistoricalPriceDto>();
+
+            // Map common aliases to Yahoo Tickers
+            var querySymbol = symbol.ToUpper() switch
+            {
+                "ASX200" => "^AXJO",
+                "S&P500" => "^GSPC",
+                "ALLORDS" => "^AORD",
+                _ => symbol
+            };
+
+            try
+            {
+                var historicalData = await Yahoo.GetHistoricalAsync(querySymbol, startDate, endDate, Period.Daily);
+
+                foreach (var candle in historicalData)
+                {
+                    history.Add(new HistoricalPriceDto
+                    {
+                        Date = candle.DateTime,
+                        Price = (decimal)candle.Close
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to fetch benchmark data for symbol: {Symbol}", querySymbol);
+            }
+
+            return history;
         }
 
         public async Task<decimal> GetPriceAsync(Models.Asset asset)
