@@ -19,7 +19,7 @@
          <LifecycleStepper 
             :current-status="deal.status" 
             :loading="transitioning"
-            @transition="handleLifecycleTransition"
+            @transition="handleTransitionRequest"
             @request-revert="handleRevertRequest"
          />
       </div>
