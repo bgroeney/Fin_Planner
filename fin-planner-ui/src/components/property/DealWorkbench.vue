@@ -356,23 +356,31 @@
 
     <!-- Risk Analysis (Read Only View) -->
     <div v-else-if="viewMode === 'risk'" class="risk-view">
-        <div class="alert-banner" v-if="hasUnsavedChanges">
-           <span>⚠️ The deal inputs have changed since the last simulation.</span>
-           <button class="btn btn-sm btn-primary" @click="handleRunSimulation">Run New Simulation</button>
-        </div>
+        
+        <!-- Unified Simulation Control Bar -->
+        <div class="simulation-control-bar" :class="{ 'has-changes': hasUnsavedChanges }">
+           <div class="control-status">
+              <span v-if="hasUnsavedChanges" class="status-icon warning">⚠️</span>
+              <span v-else class="status-icon success">✓</span>
+              
+              <div class="status-text">
+                  <span class="status-title">{{ hasUnsavedChanges ? 'Inputs Changed' : 'Up to Date' }}</span>
+                  <span class="status-desc">{{ hasUnsavedChanges ? 'Deal inputs have changed since the last simulation.' : 'Results reflect current inputs.' }}</span>
+              </div>
+           </div>
 
-        <div class="risk-actions-bar">
-          <button 
-            class="btn btn-primary run-simulation-btn full-width" 
-            @click="handleRunSimulation"
-            :disabled="runningSimulation"
-          >
-            <span v-if="runningSimulation" class="spinner"></span>
-            <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <polygon points="5 3 19 12 5 21 5 3"></polygon>
-            </svg>
-            {{ runningSimulation ? 'Running...' : 'Update & Run Analysis' }}
-          </button>
+           <div class="control-actions">
+              <button 
+                class="btn" 
+                :class="hasUnsavedChanges ? 'btn-primary' : 'btn-secondary'"
+                @click="handleRunSimulation"
+                :disabled="runningSimulation"
+              >
+                <span v-if="runningSimulation" class="spinner-sm"></span>
+                <span v-else-if="hasUnsavedChanges">Update & Run Analysis</span>
+                <span v-else>Re-run Simulation</span>
+              </button>
+           </div>
         </div>
 
         <PropertyRiskAnalyzer
@@ -381,6 +389,9 @@
             :detailed-cashflow="spreadsheetData"
             :hide-run-button="true"
             @update:inputs="handleInputsUpdate"
+        />
+    </div>
+
         />
     </div>
 
@@ -682,6 +693,28 @@ const calculatedLVR = computed(() => {
     if (!props.deal || !props.deal.askingPrice) return 0;
     return (totalLoanAmount.value / props.deal.askingPrice) * 100;
 });
+
+// Risk Analysis Properties
+const simulationInputSource = computed(() => props.deal);
+const hasUnsavedChanges = ref(false);
+
+function handleInputsUpdate(newInputs) {
+    // Check if critical inputs have changed to show "Unsaved Changes" banner
+    // For now, basic implementation:
+    hasUnsavedChanges.value = true;
+    
+    // Auto-save specific risk fields back to deal if they exist in the deal mapping
+    // This allows persisting risk preferences (like distribution variances)
+    const updates = {};
+    if (newInputs.rentVariancePercent !== props.deal.rentVariancePercent) updates.rentVariancePercent = newInputs.rentVariancePercent;
+    if (newInputs.vacancyVariancePercent !== props.deal.vacancyVariancePercent) updates.vacancyVariancePercent = newInputs.vacancyVariancePercent;
+    if (newInputs.capitalGrowthVariancePercent !== props.deal.capitalGrowthVariancePercent) updates.capitalGrowthVariancePercent = newInputs.capitalGrowthVariancePercent;
+    if (newInputs.interestVariancePercent !== props.deal.interestVariancePercent) updates.interestVariancePercent = newInputs.interestVariancePercent;
+    
+    if (Object.keys(updates).length > 0) {
+        emit('update', updates);
+    }
+}
 
 // Logic Methods
 function toggleLeaseMode() {
@@ -1286,5 +1319,72 @@ function formatCurrency(value) {
   flex: 1;
   overflow-y: auto;
   padding-bottom: var(--spacing-2xl);
+}
+
+/* Simulation Control Bar */
+.simulation-control-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--spacing-lg);
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  margin-bottom: var(--spacing-lg);
+  transition: all var(--transition-base);
+}
+
+.simulation-control-bar.has-changes {
+  background: rgba(245, 158, 11, 0.05); /* Amber tint */
+  border-color: rgba(245, 158, 11, 0.3);
+}
+
+.control-status {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+}
+
+.status-icon {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.status-icon.warning {
+  background: rgba(245, 158, 11, 0.2);
+  color: var(--color-warning);
+}
+
+.status-icon.success {
+  background: rgba(16, 185, 129, 0.1);
+  color: var(--color-success);
+}
+
+.status-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.status-title {
+  font-weight: 600;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-primary);
+}
+
+.status-desc {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+}
+
+.control-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
 }
 </style>
