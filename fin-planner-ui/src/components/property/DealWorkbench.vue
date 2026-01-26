@@ -21,7 +21,7 @@
             :loading="transitioning"
             @transition="handleTransitionRequest"
             @request-revert="handleRevertRequest"
-         />
+         ></LifecycleStepper>
       </div>
 
     </div>
