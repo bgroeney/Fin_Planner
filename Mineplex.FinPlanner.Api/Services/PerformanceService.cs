@@ -53,6 +53,22 @@ namespace Mineplex.FinPlanner.Api.Services
             var portfolioHoldings = new Dictionary<Guid, decimal>(); // AssetId -> Units
             var transactionQueue = new Queue<Transaction>(transactions);
 
+            // Pre-fetch prices to avoid N+1 queries in the loop
+            var distinctAssetIds = transactions.Select(t => t.AssetId).Distinct().ToList();
+
+            var historicalPrices = await _context.HistoricalPrices
+                .Where(hp => distinctAssetIds.Contains(hp.AssetId) && hp.Date <= endDate)
+                .Select(hp => new { hp.AssetId, hp.Date, hp.ClosePrice })
+                .ToListAsync();
+
+            var pricesByAsset = historicalPrices
+                .GroupBy(hp => hp.AssetId)
+                .ToDictionary(g => g.Key, g => g.OrderBy(hp => hp.Date).ToList());
+
+            var currentPrices = await _context.CurrentPrices
+                 .Where(cp => distinctAssetIds.Contains(cp.AssetId))
+                 .ToDictionaryAsync(cp => cp.AssetId, cp => cp.Price);
+
             for (var date = startDate; date <= endDate; date = date.AddDays(1))
             {
                 // Process transactions for this day
@@ -77,30 +93,26 @@ namespace Mineplex.FinPlanner.Api.Services
                 decimal totalValue = 0;
                 var allocation = new Dictionary<string, decimal>();
 
-                // We need prices for this date.
-                // NOTE: This could be slow if doing N+1 queries. 
-                // In production, fetch all HistoryPrices for these AssetIds range [Start, End].
                 foreach (var kvp in portfolioHoldings.Where(x => x.Value > 0))
                 {
                     var assetId = kvp.Key;
                     var units = kvp.Value;
+                    decimal price = 0;
 
-                    // Try get historical price
-                    var price = await _context.HistoricalPrices
-                        .Where(hp => hp.AssetId == assetId && hp.Date <= date)
-                        .OrderByDescending(hp => hp.Date)
-                        .Select(hp => hp.ClosePrice)
-                        .FirstOrDefaultAsync();
+                    // Try get historical price from memory
+                    if (pricesByAsset.TryGetValue(assetId, out var history))
+                    {
+                        var match = history.LastOrDefault(h => h.Date <= date);
+                        if (match != null) price = match.ClosePrice;
+                    }
 
                     // Fallback to current price if recent
                     if (price == 0 && date >= DateTime.UtcNow.AddDays(-7))
                     {
-                        // This is a rough estimation fallback
-                        var current = await _context.Assets.Include(a => a.CurrentPrice)
-                           .Where(a => a.Id == assetId)
-                           .Select(a => a.CurrentPrice != null ? a.CurrentPrice.Price : 0)
-                           .FirstOrDefaultAsync();
-                        price = current;
+                        if (currentPrices.TryGetValue(assetId, out var cp))
+                        {
+                            price = cp;
+                        }
                     }
 
                     totalValue += units * price;
