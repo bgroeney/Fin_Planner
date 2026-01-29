@@ -43,10 +43,26 @@ namespace Mineplex.FinPlanner.Api.Services
             _context.PerformanceSnapshots.RemoveRange(existing);
 
             // 3. Replay history day by day
-            // Optimization: In a real system we wouldn't fetch price for EVERY day in a loop.
-            // We would fetch all historical prices in bulk.
+            // Optimization: Bulk fetch prices to avoid N+1 queries in the loop
+            var relevantAssetIds = transactions.Select(t => t.AssetId).Distinct().ToList();
 
-            // For now, simpler implementation: 
+            var allPrices = await _context.HistoricalPrices
+                .Where(hp => relevantAssetIds.Contains(hp.AssetId) && hp.Date <= endDate)
+                .Select(hp => new { hp.AssetId, hp.Date, hp.ClosePrice })
+                .ToListAsync();
+
+            var priceLookup = allPrices
+                .GroupBy(p => p.AssetId)
+                .ToDictionary(
+                    g => g.Key,
+                    g => g.OrderByDescending(p => p.Date).ToList()
+                );
+
+            var currentPrices = await _context.Assets
+                .Where(a => relevantAssetIds.Contains(a.Id))
+                .Select(a => new { a.Id, Price = a.CurrentPrice != null ? a.CurrentPrice.Price : 0 })
+                .ToDictionaryAsync(x => x.Id, x => x.Price);
+
             // We iterate through every transaction to build the "Units Held" state.
             // Then for each day, we value those units.
 
@@ -75,32 +91,30 @@ namespace Mineplex.FinPlanner.Api.Services
                 // For simplicity, we just look up the price.
 
                 decimal totalValue = 0;
-                var allocation = new Dictionary<string, decimal>();
 
                 // We need prices for this date.
-                // NOTE: This could be slow if doing N+1 queries. 
-                // In production, fetch all HistoryPrices for these AssetIds range [Start, End].
                 foreach (var kvp in portfolioHoldings.Where(x => x.Value > 0))
                 {
                     var assetId = kvp.Key;
                     var units = kvp.Value;
 
-                    // Try get historical price
-                    var price = await _context.HistoricalPrices
-                        .Where(hp => hp.AssetId == assetId && hp.Date <= date)
-                        .OrderByDescending(hp => hp.Date)
-                        .Select(hp => hp.ClosePrice)
-                        .FirstOrDefaultAsync();
+                    decimal price = 0;
+
+                    // Try get historical price from memory
+                    if (priceLookup.TryGetValue(assetId, out var prices))
+                    {
+                        // Since list is sorted by Date DESC, First matching Date <= date is the correct one
+                        var match = prices.FirstOrDefault(p => p.Date <= date);
+                        if (match != null) price = match.ClosePrice;
+                    }
 
                     // Fallback to current price if recent
                     if (price == 0 && date >= DateTime.UtcNow.AddDays(-7))
                     {
-                        // This is a rough estimation fallback
-                        var current = await _context.Assets.Include(a => a.CurrentPrice)
-                           .Where(a => a.Id == assetId)
-                           .Select(a => a.CurrentPrice != null ? a.CurrentPrice.Price : 0)
-                           .FirstOrDefaultAsync();
-                        price = current;
+                        if (currentPrices.TryGetValue(assetId, out var current))
+                        {
+                            price = current;
+                        }
                     }
 
                     totalValue += units * price;
