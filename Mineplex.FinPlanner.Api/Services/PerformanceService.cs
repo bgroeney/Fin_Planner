@@ -42,20 +42,47 @@ namespace Mineplex.FinPlanner.Api.Services
                 .ToListAsync();
             _context.PerformanceSnapshots.RemoveRange(existing);
 
-            // 3. Replay history day by day
-            // Optimization: In a real system we wouldn't fetch price for EVERY day in a loop.
-            // We would fetch all historical prices in bulk.
+            // 3. Prepare data for optimized loop
+            var assetIds = transactions.Select(t => t.AssetId).Distinct().ToList();
 
-            // For now, simpler implementation: 
-            // We iterate through every transaction to build the "Units Held" state.
-            // Then for each day, we value those units.
+            // Fetch historical prices in bulk (read-only)
+            var historyPrices = await _context.HistoricalPrices
+                .AsNoTracking()
+                .Where(hp => assetIds.Contains(hp.AssetId) && hp.Date <= endDate)
+                .ToListAsync();
 
+            // Group prices by Date for event-based processing
+            var historyByDate = historyPrices
+                .GroupBy(hp => hp.Date.Date)
+                .ToDictionary(g => g.Key, g => g.ToList());
+
+            // Fetch current prices in bulk for fallback
+            var currentPrices = await _context.CurrentPrices
+                .AsNoTracking()
+                .Where(cp => assetIds.Contains(cp.AssetId))
+                .ToDictionaryAsync(cp => cp.AssetId, cp => cp.Price);
+
+            // State variables
             var portfolioHoldings = new Dictionary<Guid, decimal>(); // AssetId -> Units
+            var assetPrices = new Dictionary<Guid, decimal>(); // AssetId -> Last Known Price
             var transactionQueue = new Queue<Transaction>(transactions);
 
+            // Pre-seed assetPrices with the latest price before startDate for all assets
+            // This handles cases where we hold an asset but the last price update was before startDate
+            var initialPrices = historyPrices
+                .Where(hp => hp.Date < startDate)
+                .GroupBy(hp => hp.AssetId)
+                .Select(g => new { AssetId = g.Key, Price = g.OrderByDescending(x => x.Date).First().ClosePrice });
+
+            foreach (var ip in initialPrices)
+            {
+                assetPrices[ip.AssetId] = ip.Price;
+            }
+
+            // 4. Replay history day by day
             for (var date = startDate; date <= endDate; date = date.AddDays(1))
             {
-                // Process transactions for this day
+                // A. Apply Transactions
                 while (transactionQueue.Count > 0 && transactionQueue.Peek().EffectiveDate.Date <= date)
                 {
                     var tx = transactionQueue.Dequeue();
@@ -71,36 +98,39 @@ namespace Mineplex.FinPlanner.Api.Services
                     }
                 }
 
-                // If it's a weekend, strictly speaking markets are closed, but we carry forward Friday's value usually.
-                // For simplicity, we just look up the price.
+                // B. Apply Price Updates for this day
+                if (historyByDate.TryGetValue(date, out var dailyPrices))
+                {
+                    foreach (var hp in dailyPrices)
+                    {
+                        assetPrices[hp.AssetId] = hp.ClosePrice;
+                    }
+                }
 
+                // C. Calculate Value
                 decimal totalValue = 0;
-                var allocation = new Dictionary<string, decimal>();
 
-                // We need prices for this date.
-                // NOTE: This could be slow if doing N+1 queries. 
-                // In production, fetch all HistoryPrices for these AssetIds range [Start, End].
+                // We iterate only over assets we currently hold (or have held - effectively keys in dictionary)
+                // Filter for positive holdings
                 foreach (var kvp in portfolioHoldings.Where(x => x.Value > 0))
                 {
                     var assetId = kvp.Key;
                     var units = kvp.Value;
+                    decimal price = 0;
 
-                    // Try get historical price
-                    var price = await _context.HistoricalPrices
-                        .Where(hp => hp.AssetId == assetId && hp.Date <= date)
-                        .OrderByDescending(hp => hp.Date)
-                        .Select(hp => hp.ClosePrice)
-                        .FirstOrDefaultAsync();
+                    // Use last known price from history
+                    if (assetPrices.TryGetValue(assetId, out var knownPrice))
+                    {
+                        price = knownPrice;
+                    }
 
-                    // Fallback to current price if recent
+                    // Fallback to current price if price is 0 (missing history) AND recent date
                     if (price == 0 && date >= DateTime.UtcNow.AddDays(-7))
                     {
-                        // This is a rough estimation fallback
-                        var current = await _context.Assets.Include(a => a.CurrentPrice)
-                           .Where(a => a.Id == assetId)
-                           .Select(a => a.CurrentPrice != null ? a.CurrentPrice.Price : 0)
-                           .FirstOrDefaultAsync();
-                        price = current;
+                        if (currentPrices.TryGetValue(assetId, out var currentPrice))
+                        {
+                            price = currentPrice;
+                        }
                     }
 
                     totalValue += units * price;
@@ -114,7 +144,7 @@ namespace Mineplex.FinPlanner.Api.Services
                         PortfolioId = portfolioId,
                         Date = date,
                         TotalValue = totalValue,
-                        AllocationBreakdown = JsonSerializer.Serialize(portfolioHoldings) // Simplified allocation
+                        AllocationBreakdown = JsonSerializer.Serialize(portfolioHoldings)
                     });
                 }
             }
