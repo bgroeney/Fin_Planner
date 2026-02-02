@@ -36,6 +36,7 @@ namespace Mineplex.FinPlanner.Api.Services
         {
             // 1. Fetch all portfolios for the user with benchmark asset included
             var portfolios = await _context.Portfolios
+                .AsNoTracking()
                 .Where(p => p.OwnerId == userId)
                 .Include(p => p.BenchmarkAsset)
                 .ToListAsync();
@@ -46,12 +47,14 @@ namespace Mineplex.FinPlanner.Api.Services
 
             // 2. Fetch all categories for these portfolios in one query
             var allCategories = await _context.AssetCategories
+                .AsNoTracking()
                 .Where(c => portfolioIds.Contains(c.PortfolioId))
                 .OrderBy(c => c.DisplayOrder)
                 .ToListAsync();
 
             // 3. Fetch all accounts for these portfolios
             var allAccounts = await _context.Accounts
+                .AsNoTracking()
                 .Where(a => portfolioIds.Contains(a.PortfolioId))
                 .ToListAsync();
 
@@ -59,6 +62,7 @@ namespace Mineplex.FinPlanner.Api.Services
 
             // 4. Fetch all holdings for these accounts with asset and current price included
             var allHoldings = await _context.Holdings
+                .AsNoTracking()
                 .Where(h => accountIds.Contains(h.AccountId))
                 .Include(h => h.Asset)
                     .ThenInclude(a => a.CurrentPrice)
@@ -97,12 +101,14 @@ namespace Mineplex.FinPlanner.Api.Services
         public async Task<PortfolioDto> GetPortfolioByIdAsync(Guid userId, Guid portfolioId)
         {
             var portfolio = await _context.Portfolios
+                .AsNoTracking()
                 .Include(p => p.BenchmarkAsset)
                 .FirstOrDefaultAsync(p => p.Id == portfolioId && p.OwnerId == userId);
 
             if (portfolio == null) throw new KeyNotFoundException("Portfolio not found");
 
             var categories = await _context.AssetCategories
+                .AsNoTracking()
                 .Where(c => c.PortfolioId == portfolio.Id)
                 .OrderBy(c => c.DisplayOrder)
                 .ToListAsync();
@@ -173,21 +179,28 @@ namespace Mineplex.FinPlanner.Api.Services
         public async Task<AssetDetailDto> GetAssetDetailsAsync(Guid userId, Guid portfolioId, Guid assetId)
         {
             // 1. Verify Portfolio
-            var portfolio = await _context.Portfolios.FirstOrDefaultAsync(p => p.Id == portfolioId && p.OwnerId == userId);
+            var portfolio = await _context.Portfolios
+                .AsNoTracking()
+                .FirstOrDefaultAsync(p => p.Id == portfolioId && p.OwnerId == userId);
             if (portfolio == null) throw new KeyNotFoundException("Portfolio not found");
 
             // 2. Get Asset
-            var asset = await _context.Assets.FindAsync(assetId);
+            // Using AsNoTracking() manually since FindAsync tracks by default
+            var asset = await _context.Assets
+                .AsNoTracking()
+                .FirstOrDefaultAsync(a => a.Id == assetId);
             if (asset == null) throw new KeyNotFoundException("Asset not found");
 
             // 3. Get Account IDs
             var accountIds = await _context.Accounts
+                .AsNoTracking()
                 .Where(a => a.PortfolioId == portfolioId)
                 .Select(a => a.Id)
                 .ToListAsync();
 
             // 4. Aggregate Holdings
             var holdings = await _context.Holdings
+                .AsNoTracking()
                 .Where(h => accountIds.Contains(h.AccountId) && h.AssetId == assetId)
                 .ToListAsync();
 
@@ -212,6 +225,7 @@ namespace Mineplex.FinPlanner.Api.Services
 
             // 6. Get Transactions
             var transactions = await _context.Transactions
+                .AsNoTracking()
                 .Where(t => accountIds.Contains(t.AccountId) && t.AssetId == assetId)
                 .OrderByDescending(t => t.EffectiveDate)
                 .Select(t => new AssetTransactionDto
@@ -403,15 +417,19 @@ namespace Mineplex.FinPlanner.Api.Services
         public async Task<List<AssetTransactionDto>> GetAssetTransactionsAsync(Guid userId, Guid portfolioId, Guid assetId, int page, int pageSize)
         {
             // 1. Verify Portfolio (security)
-            var portfolio = await _context.Portfolios.FirstOrDefaultAsync(p => p.Id == portfolioId && p.OwnerId == userId);
+            var portfolio = await _context.Portfolios
+                .AsNoTracking()
+                .FirstOrDefaultAsync(p => p.Id == portfolioId && p.OwnerId == userId);
             if (portfolio == null) throw new KeyNotFoundException("Portfolio not found");
 
             var accountIds = await _context.Accounts
+                .AsNoTracking()
                 .Where(a => a.PortfolioId == portfolioId)
                 .Select(a => a.Id)
                 .ToListAsync();
 
             var query = _context.Transactions
+                .AsNoTracking()
                 .Where(t => accountIds.Contains(t.AccountId) && t.AssetId == assetId)
                 .OrderByDescending(t => t.EffectiveDate)
                 .Select(t => new AssetTransactionDto
