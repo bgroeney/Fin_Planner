@@ -20,8 +20,10 @@ namespace Mineplex.FinPlanner.Api.Services
 
         public async Task RecalculateHoldingsAsync(Guid accountId)
         {
+            // Optimization: Use AsNoTracking() as these entities are read-only for calculation
+            // Removed Include(t => t.FileUpload) as we only filter on it, not use it in results
             var transactions = await _context.Transactions
-                .Include(t => t.FileUpload)
+                .AsNoTracking()
                 .Where(t => t.AccountId == accountId && (t.FileUploadId == null || (t.FileUpload != null && t.FileUpload.IsActive)))
                 .OrderBy(t => t.EffectiveDate)
                 .ThenBy(t => t.AttachedOrder)
