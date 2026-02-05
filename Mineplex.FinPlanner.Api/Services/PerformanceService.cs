@@ -26,6 +26,7 @@ namespace Mineplex.FinPlanner.Api.Services
         {
             // 1. Get all transactions for portfolio
             var transactions = await _context.Transactions
+                .AsNoTracking()
                 .Include(t => t.Account)
                 .Where(t => t.Account.PortfolioId == portfolioId)
                 .OrderBy(t => t.EffectiveDate)
@@ -42,14 +43,34 @@ namespace Mineplex.FinPlanner.Api.Services
                 .ToListAsync();
             _context.PerformanceSnapshots.RemoveRange(existing);
 
-            // 3. Replay history day by day
-            // Optimization: In a real system we wouldn't fetch price for EVERY day in a loop.
-            // We would fetch all historical prices in bulk.
+            // 3. Data Prefetching (Optimization)
+            var distinctAssetIds = transactions.Select(t => t.AssetId).Distinct().ToList();
 
-            // For now, simpler implementation: 
-            // We iterate through every transaction to build the "Units Held" state.
-            // Then for each day, we value those units.
+            // Fetch all historical prices in one query
+            var historicalPrices = await _context.HistoricalPrices
+                .AsNoTracking()
+                .Where(hp => distinctAssetIds.Contains(hp.AssetId) && hp.Date >= startDate)
+                .ToListAsync();
 
+            var priceHistoryLookup = historicalPrices
+                .GroupBy(hp => hp.AssetId)
+                .ToDictionary(
+                    g => g.Key,
+                    g => g.OrderBy(hp => hp.Date).ToList()
+                );
+
+            // Fetch all current prices for fallback
+            var currentPrices = await _context.Assets
+                .AsNoTracking()
+                .Where(a => distinctAssetIds.Contains(a.Id))
+                .Include(a => a.CurrentPrice)
+                .Select(a => new { a.Id, Price = a.CurrentPrice != null ? a.CurrentPrice.Price : 0 })
+                .ToDictionaryAsync(a => a.Id, a => a.Price);
+
+            // Cursors to track position in history list for each asset: AssetId -> Index
+            var priceCursors = distinctAssetIds.ToDictionary(id => id, id => 0);
+
+            // 4. Replay history day by day
             var portfolioHoldings = new Dictionary<Guid, decimal>(); // AssetId -> Units
             var transactionQueue = new Queue<Transaction>(transactions);
 
@@ -71,36 +92,39 @@ namespace Mineplex.FinPlanner.Api.Services
                     }
                 }
 
-                // If it's a weekend, strictly speaking markets are closed, but we carry forward Friday's value usually.
-                // For simplicity, we just look up the price.
-
                 decimal totalValue = 0;
-                var allocation = new Dictionary<string, decimal>();
 
-                // We need prices for this date.
-                // NOTE: This could be slow if doing N+1 queries. 
-                // In production, fetch all HistoryPrices for these AssetIds range [Start, End].
                 foreach (var kvp in portfolioHoldings.Where(x => x.Value > 0))
                 {
                     var assetId = kvp.Key;
                     var units = kvp.Value;
+                    decimal price = 0;
 
-                    // Try get historical price
-                    var price = await _context.HistoricalPrices
-                        .Where(hp => hp.AssetId == assetId && hp.Date <= date)
-                        .OrderByDescending(hp => hp.Date)
-                        .Select(hp => hp.ClosePrice)
-                        .FirstOrDefaultAsync();
+                    // Fast Lookup Logic
+                    if (priceHistoryLookup.TryGetValue(assetId, out var history) && history.Any())
+                    {
+                        // Advance cursor to the latest price <= date
+                        int idx = priceCursors[assetId];
+                        while (idx < history.Count - 1 && history[idx + 1].Date <= date)
+                        {
+                            idx++;
+                        }
+                        priceCursors[assetId] = idx;
 
-                    // Fallback to current price if recent
+                        // Check if current cursor is valid for this date
+                        if (history[idx].Date <= date)
+                        {
+                            price = history[idx].ClosePrice;
+                        }
+                    }
+
+                    // Fallback to current price if recent and no history price found (or 0)
                     if (price == 0 && date >= DateTime.UtcNow.AddDays(-7))
                     {
-                        // This is a rough estimation fallback
-                        var current = await _context.Assets.Include(a => a.CurrentPrice)
-                           .Where(a => a.Id == assetId)
-                           .Select(a => a.CurrentPrice != null ? a.CurrentPrice.Price : 0)
-                           .FirstOrDefaultAsync();
-                        price = current;
+                        if (currentPrices.TryGetValue(assetId, out var currentPrice))
+                        {
+                            price = currentPrice;
+                        }
                     }
 
                     totalValue += units * price;
@@ -114,7 +138,7 @@ namespace Mineplex.FinPlanner.Api.Services
                         PortfolioId = portfolioId,
                         Date = date,
                         TotalValue = totalValue,
-                        AllocationBreakdown = JsonSerializer.Serialize(portfolioHoldings) // Simplified allocation
+                        AllocationBreakdown = JsonSerializer.Serialize(portfolioHoldings)
                     });
                 }
             }
