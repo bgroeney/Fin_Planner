@@ -49,16 +49,13 @@ namespace Mineplex.FinPlanner.Api.Controllers
         [HttpGet("portfolio/{portfolioId}")]
         public async Task<ActionResult<List<Models.Portfolios.HoldingDto>>> GetPortfolioHoldings(Guid portfolioId)
         {
-            var accountIds = await _context.Accounts
-                .Where(a => a.PortfolioId == portfolioId)
-                .Select(a => a.Id)
-                .ToListAsync();
-
+            // Optimized: Fetch holdings directly via navigation property in a single query with AsNoTracking
             var holdings = await _context.Holdings
                 .Include(h => h.Asset)
                     .ThenInclude(a => a.CurrentPrice)
                 .Include(h => h.Category)
-                .Where(h => accountIds.Contains(h.AccountId))
+                .Where(h => h.Account.PortfolioId == portfolioId)
+                .AsNoTracking()
                 .ToListAsync();
 
             return holdings.Select(h => new Models.Portfolios.HoldingDto
