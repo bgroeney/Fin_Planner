@@ -1,0 +1,3 @@
+## 2026-02-08 - EF Core Aggregation Optimization
+**Learning:** EF Core 10 allows efficient database-side aggregation of related entities even without explicit navigation properties on the parent entity, provided the child entity has a navigation property back to the parent (or grandparent). Using `GroupBy(h => h.Account.PortfolioId)` on the `Holdings` table directly is significantly more performant than fetching all `Accounts` and `Holdings` into memory to sum them up.
+**Action:** Always look for opportunities to replace "fetch-all-then-loop" logic with direct LINQ aggregations (`Sum`, `Count`, `Average`) projected into a dictionary or DTO using `Select` and `ToDictionaryAsync`. This avoids N+1 queries and large data transfers.

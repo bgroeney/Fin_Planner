@@ -50,41 +50,28 @@ namespace Mineplex.FinPlanner.Api.Services
                 .OrderBy(c => c.DisplayOrder)
                 .ToListAsync();
 
-            // 3. Fetch all accounts for these portfolios
-            var allAccounts = await _context.Accounts
-                .Where(a => portfolioIds.Contains(a.PortfolioId))
-                .ToListAsync();
-
-            var accountIds = allAccounts.Select(a => a.Id).ToList();
-
-            // 4. Fetch all holdings for these accounts with asset and current price included
-            var allHoldings = await _context.Holdings
-                .Where(h => accountIds.Contains(h.AccountId))
-                .Include(h => h.Asset)
-                    .ThenInclude(a => a.CurrentPrice)
-                .ToListAsync();
+            // 3. Fetch Total Value per Portfolio (aggregated in DB)
+            var portfolioValues = await _context.Holdings
+                .Where(h => portfolioIds.Contains(h.Account.PortfolioId))
+                .GroupBy(h => h.Account.PortfolioId)
+                .Select(g => new
+                {
+                    PortfolioId = g.Key,
+                    // Use navigation property for price. Handle null CurrentPrice safely.
+                    // Note: EF Core translates this to COALESCE(SUM(Units * Price), 0) or similar.
+                    TotalValue = g.Sum(h => h.Units * (h.Asset.CurrentPrice != null ? h.Asset.CurrentPrice.Price : 0))
+                })
+                .ToDictionaryAsync(x => x.PortfolioId, x => x.TotalValue);
 
             var result = new List<PortfolioDto>();
 
-            // 5. Build lookup dictionaries for performance
+            // 4. Build DTOs
             var categoriesByPortfolio = allCategories.ToLookup(c => c.PortfolioId);
-            var accountsByPortfolio = allAccounts.ToLookup(a => a.PortfolioId);
-            var holdingsByAccount = allHoldings.ToLookup(h => h.AccountId);
 
             foreach (var p in portfolios)
             {
                 var pCategories = categoriesByPortfolio[p.Id].ToList();
-                var pAccountIds = accountsByPortfolio[p.Id].Select(a => a.Id);
-
-                decimal totalVal = 0;
-                foreach (var accountId in pAccountIds)
-                {
-                    foreach (var h in holdingsByAccount[accountId])
-                    {
-                        var price = h.Asset.CurrentPrice?.Price ?? 0;
-                        totalVal += h.Units * price;
-                    }
-                }
+                var totalVal = portfolioValues.ContainsKey(p.Id) ? portfolioValues[p.Id] : 0;
 
                 var dto = MapToDto(p, pCategories);
                 dto.TotalValue = totalVal;
