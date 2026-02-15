@@ -359,12 +359,20 @@ namespace Mineplex.FinPlanner.Api.Services
                     return;
                 }
 
+                var minDate = historicalPrices.Min(p => p.Date.Date);
+                var maxDate = historicalPrices.Max(p => p.Date.Date);
+
+                // Optimization: Fetch all existing dates in range in one query instead of N+1
+                var existingDates = await db.HistoricalPrices
+                    .Where(hp => hp.AssetId == asset.Id && hp.Date >= minDate && hp.Date <= maxDate)
+                    .Select(hp => hp.Date)
+                    .ToListAsync();
+
+                var existingDatesSet = new HashSet<DateTime>(existingDates);
+
                 foreach (var priceData in historicalPrices)
                 {
-                    var existingPrice = await db.HistoricalPrices
-                        .FirstOrDefaultAsync(hp => hp.AssetId == asset.Id && hp.Date == priceData.Date.Date);
-
-                    if (existingPrice == null)
+                    if (!existingDatesSet.Contains(priceData.Date.Date))
                     {
                         db.HistoricalPrices.Add(new HistoricalPrice
                         {
