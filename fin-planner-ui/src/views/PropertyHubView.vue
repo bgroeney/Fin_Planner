@@ -227,7 +227,8 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
+import { usePortfolioStore } from '../stores/portfolio';
 import api from '../services/api';
 import MoneyBoxLoader from '../components/MoneyBoxLoader.vue';
 import YieldGauge from '../components/property/YieldGauge.vue';
@@ -236,6 +237,7 @@ import CashflowForecast from '../components/property/CashflowForecast.vue';
 import PropertyCard from '../components/property/PropertyCard.vue';
 import PropertyDetailDrawer from '../components/property/PropertyDetailDrawer.vue';
 
+const portfolioStore = usePortfolioStore();
 const loading = ref(true);
 const dashboard = ref({
   totalValue: 0,
@@ -294,9 +296,15 @@ function openPropertyDetail(property) {
 }
 
 async function fetchDashboard() {
+  const portfolioId = portfolioStore.currentPortfolioId;
+  if (!portfolioId) return;
+
   try {
     loading.value = true;
-    const response = await api.get('/commercialproperty/dashboard');
+    // Pass portfolioId as query param if backend supports it, or updated endpoint
+    const response = await api.get(`/commercialproperty/dashboard`, {
+      params: { portfolioId }
+    });
     dashboard.value = response.data;
   } catch (error) {
     console.error('Failed to load property dashboard:', error);
@@ -306,9 +314,18 @@ async function fetchDashboard() {
 }
 
 async function createProperty() {
+  const portfolioId = portfolioStore.currentPortfolioId;
+  if (!portfolioId) {
+    alert('No portfolio selected');
+    return;
+  }
+
   try {
     creatingProperty.value = true;
-    await api.post('/commercialproperty', newProperty.value);
+    await api.post('/commercialproperty', {
+      ...newProperty.value,
+      portfolioId // Include portfolioId in creation
+    });
     showAddPropertyModal.value = false;
     newProperty.value = {
       address: '',
@@ -328,7 +345,16 @@ async function createProperty() {
   }
 }
 
-onMounted(fetchDashboard);
+// Watch for portfolio changes
+watch(() => portfolioStore.currentPortfolioId, (newId) => {
+  if (newId) fetchDashboard();
+});
+
+onMounted(() => {
+  if (portfolioStore.currentPortfolioId) {
+    fetchDashboard();
+  }
+});
 </script>
 
 <style scoped>

@@ -1,5 +1,5 @@
 <template>
-  <div class="layout">
+  <div class="layout-container">
     <!-- Mobile Backdrop -->
     <div v-if="isMobileMenuOpen" class="sidebar-backdrop" @click="isMobileMenuOpen = false"></div>
 
@@ -19,7 +19,7 @@
         </button>
       </div>
 
-      <nav class="nav">
+      <nav class="nav-links">
         <router-link to="/" class="nav-item" exact-active-class="active" title="Dashboard" @click="isMobileMenuOpen = false">
           <div class="nav-icon">
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
@@ -27,11 +27,11 @@
           <span class="nav-label" v-if="!isCollapsed">Dashboard</span>
         </router-link>
 
-        <router-link to="/portfolios" class="nav-item" active-class="active" title="Portfolios" @click="isMobileMenuOpen = false">
+        <router-link to="/holdings" class="nav-item" active-class="active" title="Holdings" @click="isMobileMenuOpen = false">
           <div class="nav-icon">
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></svg>
           </div>
-          <span class="nav-label" v-if="!isCollapsed">Portfolios</span>
+          <span class="nav-label" v-if="!isCollapsed">Holdings</span>
         </router-link>
 
         <router-link to="/import" class="nav-item" active-class="active" title="Import" @click="isMobileMenuOpen = false">
@@ -148,6 +148,13 @@
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
           </button>
           <h1 class="page-title">{{ pageTitle }}</h1>
+          
+          <!-- Portfolio Chip -->
+          <button v-if="portfolioStore.currentPortfolio" class="portfolio-chip" @click="showPortfolioModal = true">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+            <span class="portfolio-chip-name">{{ portfolioStore.currentPortfolio.name }}</span>
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 16V4m0 0L3 8m4-4l4 4M17 8v12m0 0l4-4m-4 4l-4-4"/></svg>
+          </button>
         </div>
         <div class="header-right">
           <!-- Theme Toggle -->
@@ -183,14 +190,23 @@
         <router-view></router-view>
       </div>
     </main>
+
+    <!-- Portfolio Selector Modal -->
+    <PortfolioSelectorModal
+      :isOpen="showPortfolioModal"
+      :allowClose="!!portfolioStore.currentPortfolio"
+      @close="showPortfolioModal = false"
+      @selected="onPortfolioSelected"
+    />
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { useAuthStore } from '../stores/auth';
 import { usePortfolioStore } from '../stores/portfolio';
 import { useRouter, useRoute } from 'vue-router';
+import PortfolioSelectorModal from './PortfolioSelectorModal.vue';
 
 const authStore = useAuthStore();
 const portfolioStore = usePortfolioStore();
@@ -200,6 +216,7 @@ const route = useRoute();
 const isCollapsed = ref(false);
 const isMobileMenuOpen = ref(false);
 const showUserMenu = ref(false);
+const showPortfolioModal = ref(false);
 const isDark = ref(false);
 
 // Theme management
@@ -219,7 +236,24 @@ onMounted(() => {
   document.addEventListener('click', handleClickOutside);
   
   if (authStore.isAuthenticated) {
-    portfolioStore.fetchPortfolios();
+    initPortfolios();
+  }
+});
+
+// Async portfolio initialization (separate so onMounted doesn't need async)
+const initPortfolios = async () => {
+  await portfolioStore.fetchPortfolios();
+  // Auto-open modal if no portfolio is selected
+  if (!portfolioStore.currentPortfolio) {
+    showPortfolioModal.value = true;
+  }
+};
+
+// Sync store-driven modal opens (e.g. from PortfolioDetailView) with local ref
+watch(() => portfolioStore.showPortfolioModal, (val) => {
+  if (val) {
+    showPortfolioModal.value = true;
+    portfolioStore.closePortfolioModal();
   }
 });
 
@@ -261,6 +295,11 @@ const handleClickOutside = (e) => {
   if (!e.target.closest('.user-profile')) {
     showUserMenu.value = false;
   }
+};
+
+// Portfolio modal
+const onPortfolioSelected = (id) => {
+  showPortfolioModal.value = false;
 };
 </script>
 

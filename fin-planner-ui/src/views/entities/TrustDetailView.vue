@@ -207,6 +207,7 @@
 import { ref, computed, onMounted } from 'vue';
 import { useRoute } from 'vue-router';
 import api from '../../services/api';
+import { formatCurrency } from '../../utils/formatters';
 
 const route = useRoute();
 const trust = ref(null);
@@ -332,9 +333,7 @@ const deleteDistribution = async (id) => {
     }
 };
 
-const formatCurrency = (val) => {
-  return new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD', maximumFractionDigits: 0 }).format(val || 0);
-};
+
 
 const getTotalTaxableIncome = (inc) => {
     return (inc.frankedDividends || 0) + 

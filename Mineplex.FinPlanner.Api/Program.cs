@@ -38,6 +38,7 @@ builder.Services.AddCors(options =>
 // Register Services
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IPortfolioService, PortfolioService>();
+builder.Services.AddScoped<IPortfolioSharingService, PortfolioSharingService>();
 builder.Services.AddScoped<IDemoDataService, DemoDataService>();
 builder.Services.AddScoped<INetwealthImportService, NetwealthImportService>();
 builder.Services.AddScoped<Mineplex.FinPlanner.Api.Services.Import.INetwealthCsvParser, Mineplex.FinPlanner.Api.Services.Import.NetwealthCsvParser>();

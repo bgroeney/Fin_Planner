@@ -149,22 +149,26 @@ namespace Mineplex.FinPlanner.Api.Services
                 if (provider == null) continue;
 
                 // For assets with symbol-only overrides, we need to create temp asset objects for the provider
-                var assetsToFetch = remainingAssets.Select(a =>
-                {
-                    var symbolOverride = assetsWithSymbolOnlyOverride.FirstOrDefault(o => o.asset.Id == a.Id);
-                    if (symbolOverride.customSymbol != null)
+                var assetsToFetch = remainingAssets
+                    .Where(a => provider.SupportsAsset(a)) // Only send assets this provider can handle
+                    .Select(a =>
                     {
-                        return new Asset
+                        var symbolOverride = assetsWithSymbolOnlyOverride.FirstOrDefault(o => o.asset.Id == a.Id);
+                        if (symbolOverride.customSymbol != null)
                         {
-                            Id = a.Id,
-                            Symbol = symbolOverride.customSymbol,
-                            Name = a.Name,
-                            AssetType = a.AssetType,
-                            Market = a.Market
-                        };
-                    }
-                    return a;
-                }).ToList();
+                            return new Asset
+                            {
+                                Id = a.Id,
+                                Symbol = symbolOverride.customSymbol,
+                                Name = a.Name,
+                                AssetType = a.AssetType,
+                                Market = a.Market
+                            };
+                        }
+                        return a;
+                    }).ToList();
+
+                if (!assetsToFetch.Any()) continue; // Skip provider if no supported assets
 
                 try
                 {

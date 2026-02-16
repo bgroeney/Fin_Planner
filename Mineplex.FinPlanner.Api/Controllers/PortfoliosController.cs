@@ -14,17 +14,20 @@ namespace Mineplex.FinPlanner.Api.Controllers
         private readonly IPortfolioService _portfolioService;
         private readonly IPriceUpdateService _priceUpdateService;
         private readonly IDemoDataService _demoDataService;
+        private readonly IPortfolioSharingService _sharingService;
         private readonly ILogger<PortfoliosController> _logger;
 
         public PortfoliosController(
             IPortfolioService portfolioService,
             IPriceUpdateService priceUpdateService,
             IDemoDataService demoDataService,
+            IPortfolioSharingService sharingService,
             ILogger<PortfoliosController> logger)
         {
             _portfolioService = portfolioService;
             _priceUpdateService = priceUpdateService;
             _demoDataService = demoDataService;
+            _sharingService = sharingService;
             _logger = logger;
         }
 
@@ -139,14 +142,109 @@ namespace Mineplex.FinPlanner.Api.Controllers
             await _portfolioService.UpdatePortfolioAssetCategoryAsync(id, assetId, dto.CategoryId);
             return NoContent();
         }
+
+        [HttpPost("{id}/categories")]
+        public async Task<ActionResult<CategoryTargetDto>> AddCategory(Guid id, [FromBody] CategoryTargetDto dto)
+        {
+            try
+            {
+                var result = await _portfolioService.AddCategoryAsync(id, dto);
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
+        [HttpPut("{id}/categories/{categoryId}")]
+        public async Task<IActionResult> UpdateCategory(Guid id, Guid categoryId, [FromBody] CategoryTargetDto dto)
+        {
+            try
+            {
+                await _portfolioService.UpdateCategoryAsync(id, categoryId, dto);
+                return NoContent();
+            }
+            catch (KeyNotFoundException)
+            {
+                return NotFound();
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
+        [HttpDelete("{id}/categories/{categoryId}")]
+        public async Task<IActionResult> DeleteCategory(Guid id, Guid categoryId)
+        {
+            try
+            {
+                await _portfolioService.DeleteCategoryAsync(id, categoryId);
+                return NoContent();
+            }
+            catch (KeyNotFoundException)
+            {
+                return NotFound();
+            }
+        }
         [HttpGet]
         [Route("{portfolioId}/assets/{assetId}/transactions")]
         public async Task<ActionResult<List<AssetTransactionDto>>> GetAssetTransactions(Guid portfolioId, Guid assetId, [FromQuery] int page = 1, [FromQuery] int pageSize = 20)
         {
-            // Use user ID from auth
-            // Mocking user ID for now as per prev context, or extract from claims
-            var userId = Guid.Parse("11111111-1111-1111-1111-111111111111");
-            return await _portfolioService.GetAssetTransactionsAsync(userId, portfolioId, assetId, page, pageSize);
+            return await _portfolioService.GetAssetTransactionsAsync(GetUserId(), portfolioId, assetId, page, pageSize);
+        }
+
+        // ===== Sharing Endpoints =====
+
+        [HttpGet("{id}/shares")]
+        public async Task<ActionResult<List<PortfolioShareDto>>> GetShares(Guid id)
+        {
+            try
+            {
+                var shares = await _sharingService.GetSharesForPortfolioAsync(GetUserId(), id);
+                return Ok(shares);
+            }
+            catch (KeyNotFoundException)
+            {
+                return NotFound();
+            }
+        }
+
+        [HttpPost("{id}/shares")]
+        public async Task<ActionResult<PortfolioShareDto>> SharePortfolio(Guid id, [FromBody] SharePortfolioRequest request)
+        {
+            try
+            {
+                var share = await _sharingService.SharePortfolioAsync(GetUserId(), id, request);
+                return CreatedAtAction(nameof(GetShares), new { id }, share);
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(new { message = ex.Message });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
+        [HttpDelete("{id}/shares/{shareId}")]
+        public async Task<IActionResult> RevokeShare(Guid id, Guid shareId)
+        {
+            try
+            {
+                await _sharingService.RevokeShareAsync(GetUserId(), shareId);
+                return NoContent();
+            }
+            catch (KeyNotFoundException)
+            {
+                return NotFound();
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return Forbid();
+            }
         }
     }
 }

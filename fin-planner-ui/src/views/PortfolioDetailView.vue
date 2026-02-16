@@ -5,8 +5,8 @@
       <div class="header-info">
         <div class="title-row">
           <h1>{{ portfolio.name }}</h1>
-          <button @click="settingsOpen = true" class="btn-icon" title="Edit Portfolio">
-            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          <button @click="showSettingsModal = true" class="btn-icon" title="Portfolio Settings">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
           </button>
           <span v-if="portfolio.benchmarkSymbol" class="benchmark-badge">vs {{ portfolio.benchmarkSymbol }}</span>
         </div>
@@ -107,19 +107,21 @@
 
     <!-- Portfolio Settings Modal -->
     <PortfolioSettingsModal 
-      :isOpen="settingsOpen"
+      :isOpen="showSettingsModal"
       :portfolio="portfolio"
-      @close="settingsOpen = false"
+      @close="showSettingsModal = false"
       @updated="loadData"
-      @deleted="onDeleted"
+      @deleted="handlePortfolioDeleted"
     />
+
   </div>
   <div v-else class="loading-state">Loading Portfolio...</div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+import { usePortfolioStore } from '../stores/portfolio';
 import api from '../services/api';
 import AllocationChart from '../components/AllocationChart.vue';
 import AssetDetailDrawer from '../components/AssetDetailDrawer.vue';
@@ -128,13 +130,15 @@ import { formatCurrency } from '../utils/formatters';
 
 const route = useRoute();
 const router = useRouter();
+const portfolioStore = usePortfolioStore();
+
 const portfolio = ref(null);
 const accounts = ref([]);
 const holdings = ref([]);
 const selectedAccountId = ref(null);
 const showClosedPositions = ref(false);
 const drawerOpen = ref(false);
-const settingsOpen = ref(false);
+const showSettingsModal = ref(false);
 const selectedAssetId = ref(null);
 const allocationExpanded = ref(true);
 
@@ -190,25 +194,36 @@ const closeDrawer = () => {
   selectedAssetId.value = null;
 };
 
+const handlePortfolioDeleted = () => {
+    router.push('/');
+};
+
 const loadData = async () => {
+  const portfolioId = portfolioStore.currentPortfolioId;
+  if (!portfolioId) return;
+
   try {
-    const pRes = await api.get(`/portfolios/${route.params.id}`);
+    const pRes = await api.get(`/portfolios/${portfolioId}`);
     portfolio.value = pRes.data;
-    const accRes = await api.get(`/accounts/portfolio/${route.params.id}`);
+    const accRes = await api.get(`/accounts/portfolio/${portfolioId}`);
     accounts.value = accRes.data;
-    const hRes = await api.get(`/holdings/portfolio/${route.params.id}`);
+    const hRes = await api.get(`/holdings/portfolio/${portfolioId}`);
     holdings.value = hRes.data;
   } catch (e) {
     console.error(e);
   }
 };
 
-const onDeleted = () => {
-  // Navigate to portfolio list after deletion
-  router.push('/portfolios');
-};
+// Watch for global portfolio changes
+watch(() => portfolioStore.currentPortfolioId, (newId) => {
+  if (newId) loadData();
+});
 
-onMounted(loadData);
+onMounted(() => {
+  if (portfolioStore.currentPortfolioId) {
+    loadData();
+  }
+});
 </script>
 
 <style scoped>

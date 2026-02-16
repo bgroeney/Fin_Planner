@@ -10,16 +10,6 @@
     <!-- Upload Card -->
     <div class="card mb-xl">
       <div v-if="!preview">
-        <div class="form-group mb-lg">
-          <label class="label-text mb-sm block">Select Portfolio</label>
-          <div class="select-wrapper">
-            <select v-model="selectedPortfolioId" class="form-select">
-              <option disabled value="">Choose a portfolio...</option>
-              <option v-for="p in portfolios" :key="p.id" :value="p.id">{{ p.name }}</option>
-            </select>
-          </div>
-        </div>
-
         <div class="upload-area mb-lg" @dragover.prevent @drop.prevent="handleDrop">
           <input type="file" id="fileInput" @change="handleFileChange" accept=".csv" class="hidden">
           <label for="fileInput" class="upload-label">
@@ -35,7 +25,7 @@
         </div>
 
         <div class="flex-end">
-          <button @click="uploadFile" class="btn btn-primary" :disabled="!file || !selectedPortfolioId">
+          <button @click="uploadFile" class="btn btn-primary" :disabled="!file || !currentPortfolioId">
             Next: Preview Import
           </button>
         </div>
@@ -190,12 +180,13 @@
 
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue';
+import { usePortfolioStore } from '../stores/portfolio';
 import api from '../services/api';
 import { useRouter } from 'vue-router';
 import MoneyBoxLoader from '../components/MoneyBoxLoader.vue';
+import { formatCurrency } from '../utils/formatters';
 
-const portfolios = ref([]);
-const selectedPortfolioId = ref('');
+const portfolioStore = usePortfolioStore();
 const file = ref(null);
 const preview = ref(null);
 const fileContentBase64 = ref('');
@@ -204,34 +195,31 @@ const includeDuplicates = ref(false);
 const history = ref([]);
 const router = useRouter();
 
+const currentPortfolioId = computed(() => portfolioStore.currentPortfolioId);
+
 const duplicateCount = computed(() => {
   return preview.value?.previewRecords?.filter(r => r.isDuplicate).length || 0;
 });
 
-const fetchPortfolios = async () => {
-  try {
-    const res = await api.get('/portfolios');
-    portfolios.value = res.data;
-    if(portfolios.value.length > 0) {
-      selectedPortfolioId.value = portfolios.value[0].id;
-    }
-  } catch (e) {
-    console.error("Failed to fetch portfolios", e);
-  }
-};
-
 const fetchHistory = async () => {
-  if (!selectedPortfolioId.value) return;
+  if (!currentPortfolioId.value) return;
   try {
-    const res = await api.get(`/import/history/${selectedPortfolioId.value}`);
+    const res = await api.get(`/import/history/${currentPortfolioId.value}`);
     history.value = res.data;
   } catch (err) {
     console.error("Failed to load history", err);
   }
 };
 
-watch(selectedPortfolioId, (newVal) => {
-  if (newVal) fetchHistory();
+// Watch for portfolio changes
+watch(currentPortfolioId, () => {
+  fetchHistory();
+});
+
+onMounted(() => {
+  if (currentPortfolioId.value) {
+    fetchHistory();
+  }
 });
 
 const handleFileChange = (e) => {
@@ -258,7 +246,7 @@ const uploadFile = () => {
     fileContentBase64.value = e.target.result.split(',')[1];
     try {
       const res = await api.post('/import/preview', {
-        portfolioId: selectedPortfolioId.value,
+        portfolioId: currentPortfolioId.value,
         fileContentBase64: fileContentBase64.value,
         fileName: file.value.name
       });
@@ -274,7 +262,7 @@ const confirmImport = async () => {
   importing.value = true;
   try {
     await api.post('/import/confirm', {
-      portfolioId: selectedPortfolioId.value,
+      portfolioId: currentPortfolioId.value,
       fileContentBase64: fileContentBase64.value,
       fileName: file.value.name,
       includeDuplicates: includeDuplicates.value
@@ -282,7 +270,6 @@ const confirmImport = async () => {
     preview.value = null;
     file.value = null;
     fetchHistory();
-    // alert('Import successful!'); // Consider a toast instead
   } catch (err) {
     alert('Import failed: ' + err.message);
   } finally {
@@ -335,11 +322,13 @@ const getTypeBadge = (type) => {
   return 'badge-neutral';
 };
 
-const formatCurrency = (val) => {
-  return new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD' }).format(val);
-};
 
-onMounted(fetchPortfolios);
+
+onMounted(() => {
+  if (currentPortfolioId.value) {
+    fetchHistory();
+  }
+});
 </script>
 
 <style scoped>

@@ -5,11 +5,6 @@
         <h1>Dividend Calendar</h1>
         <p class="subtitle">Track upcoming dividend payments and historical income</p>
       </div>
-      <div class="portfolio-selector">
-        <select v-model="selectedPortfolioId" @change="loadData">
-          <option v-for="p in portfolios" :key="p.id" :value="p.id">{{ p.name }}</option>
-        </select>
-      </div>
     </div>
 
     <div v-if="loading" class="loader-container">
@@ -142,22 +137,24 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
+import { usePortfolioStore } from '../stores/portfolio';
 import api from '../services/api';
 import { formatCurrency, formatDate, formatNumber } from '../utils/formatters';
 import VueApexCharts from 'vue3-apexcharts';
 
 const apexchart = VueApexCharts;
+const portfolioStore = usePortfolioStore();
 
 const loading = ref(true);
 const activeTab = ref('upcoming');
-const portfolios = ref([]);
-const selectedPortfolioId = ref(null);
 const upcomingDividends = ref([]);
 const dividendHistory = ref([]);
 const monthlySummary = ref([]);
 const selectedFY = ref(new Date().getMonth() > 5 ? new Date().getFullYear() + 1 : new Date().getFullYear());
 const currentFY = computed(() => selectedFY.value);
+
+const currentPortfolioId = computed(() => portfolioStore.currentPortfolioId);
 
 const fiscalYears = computed(() => {
   const current = new Date().getFullYear();
@@ -206,20 +203,11 @@ const chartSeries = computed(() => [{
   data: monthlySummary.value.map(m => m.totalAmount)
 }]);
 
-const loadPortfolios = async () => {
-  try {
-    const res = await api.get('/portfolios');
-    portfolios.value = res.data;
-    if (portfolios.value.length > 0) {
-      selectedPortfolioId.value = portfolios.value[0].id;
-    }
-  } catch (e) {
-    console.error('Failed to load portfolios', e);
-  }
-};
-
 const loadData = async () => {
-  if (!selectedPortfolioId.value) return;
+  if (!currentPortfolioId.value) {
+    loading.value = false;
+    return;
+  }
   loading.value = true;
   try {
     await Promise.all([loadUpcoming(), loadHistory(), loadSummary()]);
@@ -230,7 +218,7 @@ const loadData = async () => {
 
 const loadUpcoming = async () => {
   try {
-    const res = await api.get(`/dividends/upcoming/${selectedPortfolioId.value}`);
+    const res = await api.get(`/dividends/upcoming/${currentPortfolioId.value}`);
     upcomingDividends.value = res.data;
   } catch (e) {
     console.error('Failed to load upcoming dividends', e);
@@ -240,7 +228,7 @@ const loadUpcoming = async () => {
 
 const loadHistory = async () => {
   try {
-    const res = await api.get(`/dividends/history/${selectedPortfolioId.value}?fiscalYear=${selectedFY.value}`);
+    const res = await api.get(`/dividends/history/${currentPortfolioId.value}?fiscalYear=${selectedFY.value}`);
     dividendHistory.value = res.data;
   } catch (e) {
     console.error('Failed to load dividend history', e);
@@ -250,7 +238,7 @@ const loadHistory = async () => {
 
 const loadSummary = async () => {
   try {
-    const res = await api.get(`/dividends/summary/${selectedPortfolioId.value}`);
+    const res = await api.get(`/dividends/summary/${currentPortfolioId.value}`);
     monthlySummary.value = res.data;
   } catch (e) {
     console.error('Failed to load monthly summary', e);
@@ -258,10 +246,14 @@ const loadSummary = async () => {
   }
 };
 
-onMounted(async () => {
-  await loadPortfolios();
-  if (selectedPortfolioId.value) {
-    await loadData();
+// Watch for portfolio changes
+watch(currentPortfolioId, () => {
+  loadData();
+});
+
+onMounted(() => {
+  if (currentPortfolioId.value) {
+    loadData();
   } else {
     loading.value = false;
   }

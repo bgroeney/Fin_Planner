@@ -23,7 +23,24 @@
             <div class="asset-symbol">{{ asset.symbol }}</div>
             <div class="asset-name">{{ asset.name }}</div>
             <div class="asset-category">
-              <span class="category-badge">{{ getCategoryName(asset.categoryId) }}</span>
+              <div class="category-selector" @click.stop="toggleCategoryDropdown" :class="{ open: showCategoryDropdown }">
+                <span class="category-badge interactive">{{ getCategoryName(asset.categoryId) }}</span>
+                <svg class="cat-chevron" xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+              </div>
+              <div v-if="showCategoryDropdown" class="category-dropdown">
+                <div
+                  v-for="cat in categories"
+                  :key="cat.id"
+                  class="cat-option"
+                  :class="{ selected: asset.categoryId === cat.id }"
+                  @click.stop="changeCategory(cat.id)"
+                >
+                  {{ cat.name }}
+                  <svg v-if="asset.categoryId === cat.id" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+                </div>
+                <div v-if="categories.length === 0" class="cat-option disabled">No categories defined</div>
+              </div>
+              <span v-if="categorySaving" class="cat-saving">Saving...</span>
             </div>
           </div>
           <button @click="$emit('close')" class="btn-close" title="Close">
@@ -43,9 +60,9 @@
         <div class="chart-section">
           <apexchart 
             type="area" 
-            height="160" 
             :options="chartOptions" 
             :series="chartSeries" 
+            height="130"
           />
         </div>
 
@@ -162,6 +179,8 @@ const loading = ref(false);
 const error = ref(false);
 const asset = ref(null);
 const categories = ref([]);
+const showCategoryDropdown = ref(false);
+const categorySaving = ref(false);
 const transactions = ref([]);
 const loadingTx = ref(false);
 const page = ref(1);
@@ -226,6 +245,7 @@ watch(() => props.isOpen, (val) => {
   if (val) {
     loadData();
     loadCategories();
+    showCategoryDropdown.value = false;
   }
 }, { immediate: true });
 
@@ -300,6 +320,27 @@ const chartOptions = computed(() => ({
   tooltip: { x: { format: 'dd MMM yyyy' }, y: { formatter: (val) => formatCurrency(val) } },
   colors: ['var(--color-accent)']
 }));
+
+const toggleCategoryDropdown = () => {
+  showCategoryDropdown.value = !showCategoryDropdown.value;
+};
+
+const changeCategory = async (categoryId) => {
+  if (!props.portfolioId || !props.assetId || categoryId === asset.value.categoryId) {
+    showCategoryDropdown.value = false;
+    return;
+  }
+  categorySaving.value = true;
+  try {
+    await api.put(`/portfolios/${props.portfolioId}/assets/${props.assetId}/category`, { categoryId });
+    asset.value.categoryId = categoryId;
+    showCategoryDropdown.value = false;
+  } catch (e) {
+    console.error('Failed to update category', e);
+  } finally {
+    categorySaving.value = false;
+  }
+};
 </script>
 
 <style scoped>
@@ -332,8 +373,8 @@ const chartOptions = computed(() => ({
   right: 0;
   top: 0;
   bottom: 0;
-  width: 480px;
-  max-width: 90vw;
+  width: 600px;
+  max-width: 95vw;
   box-shadow: var(--shadow-xl);
 }
 
@@ -360,7 +401,7 @@ const chartOptions = computed(() => ({
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  padding: var(--spacing-lg);
+  padding: var(--spacing-md) var(--spacing-lg);
   border-bottom: 1px solid var(--color-border);
 }
 
@@ -385,6 +426,77 @@ const chartOptions = computed(() => ({
   border-radius: var(--radius-full);
 }
 
+.category-badge.interactive {
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.category-badge.interactive:hover {
+  background: var(--color-accent);
+  color: white;
+}
+
+.category-selector {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  position: relative;
+}
+
+.cat-chevron {
+  transition: transform 0.15s ease;
+  color: var(--color-text-muted);
+}
+
+.category-selector.open .cat-chevron {
+  transform: rotate(180deg);
+}
+
+.category-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  min-width: 200px;
+  background: var(--color-bg-primary, white);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+  z-index: 50;
+  padding: 4px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.cat-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  border-radius: 6px;
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+  color: var(--color-text-primary);
+  transition: background 0.1s;
+}
+
+.cat-option:hover { background: var(--color-bg-elevated); }
+.cat-option.selected { font-weight: 600; color: var(--color-accent); }
+.cat-option.disabled { color: var(--color-text-muted); cursor: default; font-style: italic; }
+.cat-option.disabled:hover { background: transparent; }
+
+.cat-saving {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  margin-left: 6px;
+  animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
 .btn-close {
   background: transparent;
   border: none;
@@ -405,7 +517,7 @@ const chartOptions = computed(() => ({
   display: flex;
   align-items: baseline;
   gap: var(--spacing-md);
-  padding: var(--spacing-md) var(--spacing-lg);
+  padding: var(--spacing-sm) var(--spacing-lg);
 }
 
 .current-value {
@@ -513,7 +625,7 @@ const chartOptions = computed(() => ({
 
 /* Stats */
 .stats-section {
-  padding: var(--spacing-lg);
+  padding: var(--spacing-md) var(--spacing-lg);
 }
 
 .section-title {
@@ -527,7 +639,7 @@ const chartOptions = computed(() => ({
 
 .stats-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: var(--spacing-sm);
 }
 
@@ -578,6 +690,9 @@ const chartOptions = computed(() => ({
 .transaction-items {
   height: 100%;
   overflow-y: auto;
+  /* Visual cue for more records - mask fade at bottom */
+  mask-image: linear-gradient(to bottom, black 85%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom, black 85%, transparent 100%);
 }
 
 .transaction-item {

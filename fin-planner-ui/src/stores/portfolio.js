@@ -5,7 +5,8 @@ export const usePortfolioStore = defineStore('portfolio', {
     state: () => ({
         portfolios: [],
         currentPortfolioId: localStorage.getItem('currentPortfolioId') || null,
-        loading: false
+        loading: false,
+        showPortfolioModal: false
     }),
     getters: {
         currentPortfolio: (state) => {
@@ -16,6 +17,11 @@ export const usePortfolioStore = defineStore('portfolio', {
         },
         currentPortfolioValue() {
             return this.currentPortfolio?.totalValue || 0;
+        },
+        needsPortfolioSelection: (state) => {
+            if (state.portfolios.length === 0) return false;
+            if (!state.currentPortfolioId) return true;
+            return !state.portfolios.some(p => p.id === state.currentPortfolioId);
         }
     },
     actions: {
@@ -41,6 +47,12 @@ export const usePortfolioStore = defineStore('portfolio', {
         setCurrentPortfolio(id) {
             this.currentPortfolioId = id;
             localStorage.setItem('currentPortfolioId', id);
+        },
+        openPortfolioModal() {
+            this.showPortfolioModal = true;
+        },
+        closePortfolioModal() {
+            this.showPortfolioModal = false;
         }
     }
 });

@@ -221,6 +221,104 @@
           </div>
         </div>
       </div>
+
+      <!-- Portfolios Tab -->
+      <div v-if="activeTab === 'portfolios'" class="portfolios-panel">
+        <div class="card">
+          <h2>Portfolio Management</h2>
+          <p class="help-text">Create, rename, delete portfolios and manage sharing</p>
+          
+          <!-- Create Portfolio -->
+          <div class="form-group">
+            <label>Create New Portfolio</label>
+            <div class="input-group">
+              <input 
+                v-model="newPortfolioName" 
+                type="text" 
+                placeholder="Portfolio name"
+                class="input"
+              />
+              <button @click="createPortfolio" class="btn btn-primary" :disabled="!newPortfolioName.trim()">
+                Create
+              </button>
+            </div>
+          </div>
+
+          <!-- Portfolio List -->
+          <div class="portfolio-list" v-if="portfolios.length > 0">
+            <div 
+              v-for="portfolio in portfolios" 
+              :key="portfolio.id" 
+              class="portfolio-item"
+            >
+              <div class="portfolio-info">
+                <strong>{{ portfolio.name }}</strong>
+                <span v-if="portfolio.isShared" class="shared-badge">Shared with you</span>
+              </div>
+              
+              <div class="portfolio-actions" v-if="!portfolio.isShared">
+                <button @click="openSharingModal(portfolio)" class="btn-icon" title="Share">
+                  👥
+                </button>
+                <button @click="deletePortfolio(portfolio.id)" class="btn-icon btn-reset" title="Delete">
+                  🗑️
+                </button>
+              </div>
+            </div>
+          </div>
+          <p v-else class="text-muted">No portfolios yet. Create your first one above.</p>
+        </div>
+      </div>
+
+      <!-- Share Portfolio Modal -->
+      <Transition name="modal">
+        <div v-if="showShareModal" class="modal-backdrop" @click.self="showShareModal = false">
+          <div class="modal card">
+            <div class="modal-header">
+              <h2>Share "{{ selectedPortfolio?.name }}"</h2>
+              <button class="btn-close" @click="showShareModal = false">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+
+            <!-- Invite Form -->
+            <div class="form-group">
+              <label>Invite by Email</label>
+              <div class="input-group">
+                <input 
+                  v-model="shareEmail" 
+                  type="email" 
+                  placeholder="user@example.com"
+                  class="input"
+                />
+                <select v-model="shareRole" class="select-sm">
+                  <option value="Viewer">Viewer</option>
+                  <option value="Editor">Editor</option>
+                  <option value="Admin">Admin</option>
+                </select>
+              </div>
+              <button @click="inviteUser" class="btn btn-primary" :disabled="!shareEmail.trim()" style="margin-top: 12px;">
+                Send Invite
+              </button>
+            </div>
+
+            <!-- Current Shares -->
+            <div v-if="portfolioShares.length > 0" class="shares-list">
+              <h3>People with Access</h3>
+              <div v-for="share in portfolioShares" :key="share.id" class="share-item">
+                <div class="share-info">
+                  <span class="share-email">{{ share.sharedWithUserEmail }}</span>
+                  <span class="role-badge">{{ share.role }}</span>
+                </div>
+                <button @click="revokeShare(share.id)" class="btn-icon btn-reset" title="Revoke">
+                  ✕
+                </button>
+              </div>
+            </div>
+            <p v-else class="text-muted">Not shared with anyone yet.</p>
+          </div>
+        </div>
+      </Transition>
     </div>
   </div>
 </template>
@@ -233,7 +331,8 @@ const activeTab = ref('settings');
 const tabs = [
   { id: 'settings', label: 'Price Update Settings' },
   { id: 'sources', label: 'Price Source Priority' },
-  { id: 'assets', label: 'Asset Price Sources' }
+  { id: 'assets', label: 'Asset Price Sources' },
+  { id: 'portfolios', label: 'Portfolios' }
 ];
 
 const priceSettings = ref({ updateIntervalMinutes: 15 });
@@ -474,6 +573,109 @@ function isOld(date) {
   const now = new Date();
   return (now - lastUpdate) > 24 * 60 * 60 * 1000;
 }
+
+// ===== Portfolio Management =====
+const portfolios = ref([]);
+const newPortfolioName = ref('');
+const showShareModal = ref(false);
+const selectedPortfolio = ref(null);
+const portfolioShares = ref([]);
+const shareEmail = ref('');
+const shareRole = ref('Viewer');
+
+async function loadPortfolios() {
+  try {
+    const { data } = await api.get('/portfolios');
+    portfolios.value = data;
+  } catch (error) {
+    console.error('Failed to load portfolios', error);
+  }
+}
+
+async function createPortfolio() {
+  if (!newPortfolioName.value.trim()) return;
+  try {
+    await api.post('/portfolios', { name: newPortfolioName.value.trim() });
+    newPortfolioName.value = '';
+    await loadPortfolios();
+  } catch (error) {
+    alert('Failed to create portfolio');
+  }
+}
+
+async function deletePortfolio(id) {
+  const portfolio = portfolios.value.find(p => p.id === id);
+  const name = portfolio?.name || 'this portfolio';
+  
+  if (!confirm(`Are you sure you want to delete "${name}"? This will permanently remove all associated accounts, holdings, and transactions.`)) {
+    return;
+  }
+  
+  try {
+    console.log('Deleting portfolio:', id);
+    await api.delete(`/portfolios/${id}`);
+    console.log('Portfolio deleted successfully');
+    await loadPortfolios();
+    // Also refresh the global portfolio store
+    const { usePortfolioStore } = await import('../stores/portfolio');
+    const portfolioStore = usePortfolioStore();
+    await portfolioStore.fetchPortfolios();
+  } catch (error) {
+    console.error('Delete portfolio error:', error);
+    alert(`Failed to delete portfolio: ${error.response?.data?.message || error.message || 'Unknown error'}`);
+  }
+}
+
+async function openSharingModal(portfolio) {
+  selectedPortfolio.value = portfolio;
+  showShareModal.value = true;
+  shareEmail.value = '';
+  shareRole.value = 'Viewer';
+  await loadShares(portfolio.id);
+}
+
+async function loadShares(portfolioId) {
+  try {
+    const { data } = await api.get(`/portfolios/${portfolioId}/shares`);
+    portfolioShares.value = data;
+  } catch (error) {
+    console.error('Failed to load shares', error);
+    portfolioShares.value = [];
+  }
+}
+
+async function inviteUser() {
+  if (!shareEmail.value.trim() || !selectedPortfolio.value) return;
+  try {
+    await api.post(`/portfolios/${selectedPortfolio.value.id}/shares`, {
+      email: shareEmail.value.trim(),
+      role: shareRole.value
+    });
+    shareEmail.value = '';
+    await loadShares(selectedPortfolio.value.id);
+    alert('Invite sent successfully!');
+  } catch (error) {
+    alert(error.response?.data?.message || 'Failed to invite user');
+  }
+}
+
+async function revokeShare(shareId) {
+  if (!selectedPortfolio.value) return;
+  try {
+    await api.delete(`/portfolios/${selectedPortfolio.value.id}/shares/${shareId}`);
+    await loadShares(selectedPortfolio.value.id);
+  } catch (error) {
+    alert('Failed to revoke access');
+  }
+}
+
+// Load portfolios when Portfolios tab is activated via watcher
+import { watch } from 'vue';
+watch(activeTab, (newTab) => {
+  if (newTab === 'portfolios') {
+    loadPortfolios();
+  }
+});
 </script>
 
 <style scoped>
@@ -1090,4 +1292,148 @@ input:checked + .slider:before {
 
 .w-full { width: 100%; }
 .h-fit { height: fit-content; }
+
+/* Portfolio Management Styles */
+.portfolio-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+  margin-top: var(--spacing-lg);
+}
+
+.portfolio-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--spacing-md) var(--spacing-lg);
+  background: #fafafa;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+}
+
+.portfolio-info {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+}
+
+.shared-badge {
+  font-size: 0.75rem;
+  padding: 2px 8px;
+  background: #dbeafe;
+  color: #1e40af;
+  border-radius: 12px;
+  font-weight: 500;
+}
+
+.portfolio-actions {
+  display: flex;
+  gap: var(--spacing-sm);
+}
+
+/* Modal Styles */
+.modal-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal {
+  max-width: 500px;
+  width: 90%;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--spacing-lg);
+}
+
+.modal-header h2 {
+  margin-bottom: 0;
+}
+
+.btn-close {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  color: var(--color-text-muted);
+}
+
+.btn-close:hover {
+  color: var(--color-text);
+}
+
+.shares-list {
+  margin-top: var(--spacing-xl);
+}
+
+.shares-list h3 {
+  font-size: 0.9rem;
+  font-weight: 600;
+  margin-bottom: var(--spacing-md);
+  color: var(--color-text-muted);
+}
+
+.share-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: #f9fafb;
+  border-radius: var(--radius-sm);
+  margin-bottom: var(--spacing-sm);
+}
+
+.share-info {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+}
+
+.share-email {
+  font-weight: 500;
+}
+
+.role-badge {
+  font-size: 0.7rem;
+  padding: 2px 8px;
+  background: #e5e7eb;
+  color: #374151;
+  border-radius: 10px;
+  font-weight: 500;
+  text-transform: capitalize;
+}
+
+/* Modal Animations */
+.modal-enter-active,
+.modal-leave-active {
+  transition: opacity 0.2s ease;
+}
+
+.modal-enter-active .modal,
+.modal-leave-active .modal {
+  transition: transform 0.2s ease;
+}
+
+.modal-enter-from,
+.modal-leave-to {
+  opacity: 0;
+}
+
+.modal-enter-from .modal,
+.modal-leave-to .modal {
+  transform: scale(0.95);
+}
 </style>

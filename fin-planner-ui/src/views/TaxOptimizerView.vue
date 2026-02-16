@@ -146,15 +146,19 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
+import { usePortfolioStore } from '../stores/portfolio';
 import api from '../services/api';
 
+const portfolioStore = usePortfolioStore();
 const loading = ref(false);
 const applying = ref(false);
 const trusts = ref([]);
 const selectedTrustId = ref(null);
 const fiscalYear = ref(new Date().getMonth() > 5 ? new Date().getFullYear() + 1 : new Date().getFullYear());
 const result = ref(null);
+
+const currentPortfolioId = computed(() => portfolioStore.currentPortfolioId);
 
 const fiscalYears = computed(() => {
   const current = new Date().getFullYear();
@@ -170,9 +174,18 @@ const formatPercent = (value) => {
 };
 
 const loadTrusts = async () => {
+  if (!currentPortfolioId.value) {
+    trusts.value = [];
+    return;
+  }
   try {
-    const res = await api.get('/trusts');
+    const res = await api.get(`/trusts?portfolioId=${currentPortfolioId.value}`);
     trusts.value = res.data;
+    // Reset selection if the previously selected trust is no longer in the list
+    if (selectedTrustId.value && !trusts.value.find(t => t.id === selectedTrustId.value)) {
+      selectedTrustId.value = null;
+      result.value = null;
+    }
   } catch (e) {
     console.error('Failed to load trusts', e);
   }
@@ -215,7 +228,16 @@ const resetOptimization = () => {
   result.value = null;
 };
 
-onMounted(loadTrusts);
+// Watch for portfolio changes
+watch(currentPortfolioId, () => {
+  loadTrusts();
+});
+
+onMounted(() => {
+  if (currentPortfolioId.value) {
+    loadTrusts();
+  }
+});
 </script>
 
 <style scoped>

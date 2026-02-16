@@ -7,6 +7,7 @@ namespace Mineplex.FinPlanner.Api.Models
     {
         public Guid Id { get; set; }
         public Guid OwnerId { get; set; }
+        public Guid? PortfolioId { get; set; }
 
         // Basic Info
         public required string Name { get; set; }
@@ -77,6 +78,10 @@ namespace Mineplex.FinPlanner.Api.Models
         // Detailed Modeling Fields
         public string? LeaseDetailsJson { get; set; }
         public string? LoanDetailsJson { get; set; }
+
+        // Risk Analysis Settings (Monte Carlo distributions and correlations)
+        public string? DistributionSettingsJson { get; set; }
+        public string? CorrelationMatrixJson { get; set; }
     }
 
     /// <summary>
