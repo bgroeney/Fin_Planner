@@ -55,11 +55,21 @@ builder.Services.AddScoped<ITaxDistributionService, TaxDistributionService>();
 builder.Services.AddScoped<IRebalancingService, RebalancingService>();
 builder.Services.AddHttpClient();
 
+// Register internal services
+builder.Services.AddHttpClient<ISharesightService, SharesightService>()
+    .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+    {
+        UseCookies = true,
+        CookieContainer = new System.Net.CookieContainer(),
+        AllowAutoRedirect = true // Important for login 302s
+    });
+
 // Register Price Providers
 builder.Services.AddScoped<IPriceSourceProvider, YahooFinanceProvider>();
 builder.Services.AddScoped<IPriceSourceProvider, AlphaVantageProvider>();
 builder.Services.AddScoped<IPriceSourceProvider, PolygonProvider>();
 builder.Services.AddScoped<IPriceSourceProvider, MorningstarAuProvider>();
+builder.Services.AddScoped<IPriceSourceProvider, SharesightAuProvider>();
 builder.Services.AddScoped<IPriceSourceProvider, ImportedPriceProvider>();
 
 // Register Price System Manager

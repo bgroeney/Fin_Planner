@@ -261,6 +261,15 @@ namespace Mineplex.FinPlanner.Api.Data
                     Priority = 10,
                     IsEnabled = true,
                     RateLimitPerMinute = 10000 // Internal, so high limit
+                },
+                new PriceSource
+                {
+                    Id = Guid.Parse("66666666-6666-6666-6666-666666666666"),
+                    Name = "Sharesight Australia",
+                    Code = "SHARESIGHT_AU",
+                    Priority = 5,
+                    IsEnabled = true,
+                    RateLimitPerMinute = 60 // Login-based, handle with care
                 }
             );
 

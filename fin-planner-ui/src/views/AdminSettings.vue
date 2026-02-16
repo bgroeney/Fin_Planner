@@ -80,6 +80,30 @@
                 <div v-if="source.code === 'YAHOO'" class="text-muted text-sm">
                   No API key required for Yahoo Finance.
                 </div>
+                <div v-else-if="source.code === 'SHARESIGHT_AU'" class="sharesight-config">
+                  <div v-if="!editingConfigs[source.id] && source.configurationJson">
+                    <span class="key-indicator">Credentials Configured ✅</span>
+                    <button @click="editConfig(source)" class="btn-sm btn-outline">Change</button>
+                  </div>
+                  <div v-else class="config-form">
+                    <input 
+                      v-model="configForms[source.id].Username" 
+                      type="text" 
+                      placeholder="Sharesight Email"
+                      class="input-sm mb-2"
+                    />
+                    <input 
+                      v-model="configForms[source.id].Password" 
+                      type="password" 
+                      placeholder="Sharesight Password"
+                      class="input-sm mb-2"
+                    />
+                    <div class="btn-group">
+                      <button @click="saveSharesightConfig(source)" class="btn-sm btn-save-key">Save Credentials</button>
+                      <button v-if="source.configurationJson" @click="cancelEditConfig(source.id)" class="btn-sm btn-outline">Cancel</button>
+                    </div>
+                  </div>
+                </div>
                 <div v-else-if="source.hasApiKey && !editingApiKeys[source.id]" class="api-key-status">
                   <span class="key-indicator">Saved Key: ••••••••••••••••</span>
                   <button @click="editingApiKeys[source.id] = true" class="btn-sm btn-outline">Change</button>
@@ -93,7 +117,8 @@
                   />
                   <div class="btn-group">
                     <button @click="saveApiKey(source)" class="btn-sm btn-save-key">Save Key</button>
-                    <button v-if="source.hasApiKey" @click="cancelEditKey(source.id)" class="btn-sm btn-outline">Cancel</button>
+                    <button v-if="source.hasApiKey" @click="cancelEditConfig(source.id)" class="btn-sm btn-outline">Cancel</button>
+                    <button v-if="source.hasApiKey && !editingConfigs[source.id]" @click="editingApiKeys[source.id] = false" class="btn-sm btn-outline">Cancel</button>
                   </div>
                 </div>
               </div>
@@ -398,6 +423,16 @@ async function loadPriceSources() {
     const { data } = await api.get('/admin/price-sources');
     priceSources.value = data;
     priorityModified.value = false;
+
+    // Initialize config forms for Sharesight
+    data.forEach(source => {
+      if (source.code === 'SHARESIGHT_AU') {
+        // Prepare form state if not already set or if config is missing (so form shows)
+        if (!configForms.value[source.id]) {
+          configForms.value[source.id] = { Username: '', Password: '' };
+        }
+      }
+    });
   } catch (error) {
     console.error('Failed to load price sources', error);
   }
@@ -449,6 +484,49 @@ async function toggleSource(source) {
   } catch (error) {
     alert('Failed to toggle source');
     source.isEnabled = !source.isEnabled; // Revert
+  }
+}
+
+const configForms = ref({});
+const editingConfigs = ref({});
+
+function editConfig(source) {
+  editingConfigs.value[source.id] = true;
+  // Try to parse existing config or init empty
+  let existing = { Username: '', Password: '' };
+  if (source.configurationJson) {
+    try {
+      existing = JSON.parse(source.configurationJson);
+    } catch (e) {
+      console.error('Failed to parse config', e);
+    }
+  }
+  configForms.value[source.id] = existing;
+}
+
+function cancelEditConfig(sourceId) {
+  editingConfigs.value[sourceId] = false;
+  configForms.value[sourceId] = {};
+}
+
+async function saveSharesightConfig(source) {
+  const form = configForms.value[source.id];
+  if (!form?.Username || !form?.Password) {
+    alert('Please enter both email and password');
+    return;
+  }
+  
+  try {
+    const json = JSON.stringify(form);
+    await api.put(`/admin/price-sources/${source.id}/config`, {
+      configurationJson: json
+    });
+    alert(`Credentials saved for ${source.name}`);
+    source.configurationJson = json; // Update local state
+    editingConfigs.value[source.id] = false;
+  } catch (error) {
+    console.error('Failed to save config', error);
+    alert('Failed to save credentials');
   }
 }
 
@@ -796,6 +874,24 @@ h1 {
   outline: none;
   border-color: var(--color-primary);
   box-shadow: 0 0 0 3px rgba(var(--color-primary-rgb), 0.1);
+}
+
+.sharesight-config {
+  background: #f8fafc;
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px dashed #cbd5e1;
+  width: 100%;
+}
+
+.config-form {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.mb-2 {
+  margin-bottom: 8px;
 }
 
 .select-wrapper {
