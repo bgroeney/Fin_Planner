@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Mineplex.FinPlanner.Api.Data;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Mineplex.FinPlanner.Api.Migrations
 {
     [DbContext(typeof(FinPlannerDbContext))]
-    partial class FinPlannerDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260126130817_OptimizeIndexes")]
+    partial class OptimizeIndexes
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -69,9 +72,6 @@ namespace Mineplex.FinPlanner.Api.Migrations
                     b.Property<string>("AccountNumber")
                         .IsRequired()
                         .HasColumnType("text");
-
-                    b.Property<int>("AccountType")
-                        .HasColumnType("integer");
 
                     b.Property<Guid>("PortfolioId")
                         .HasColumnType("uuid");
@@ -209,9 +209,6 @@ namespace Mineplex.FinPlanner.Api.Migrations
 
                     b.Property<string>("OldValues")
                         .HasColumnType("text");
-
-                    b.Property<Guid?>("PortfolioId")
-                        .HasColumnType("uuid");
 
                     b.Property<DateTime>("Timestamp")
                         .HasColumnType("timestamp with time zone");
@@ -385,9 +382,6 @@ namespace Mineplex.FinPlanner.Api.Migrations
                     b.Property<Guid>("DealId")
                         .HasColumnType("uuid");
 
-                    b.Property<string>("InputsSnapshotJson")
-                        .HasColumnType("text");
-
                     b.Property<string>("NewStatus")
                         .IsRequired()
                         .HasColumnType("text");
@@ -396,17 +390,9 @@ namespace Mineplex.FinPlanner.Api.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<Guid?>("SimulationSnapshotId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("SpreadsheetSnapshotJson")
-                        .HasColumnType("text");
-
                     b.HasKey("Id");
 
                     b.HasIndex("DealId");
-
-                    b.HasIndex("SimulationSnapshotId");
 
                     b.ToTable("DealStatusHistory");
                 });
@@ -1292,38 +1278,6 @@ namespace Mineplex.FinPlanner.Api.Migrations
                     b.ToTable("Portfolios");
                 });
 
-            modelBuilder.Entity("Mineplex.FinPlanner.Api.Models.PortfolioShare", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid?>("InvitedByUserId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("PortfolioId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Role")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<Guid>("SharedWithUserId")
-                        .HasColumnType("uuid");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("SharedWithUserId");
-
-                    b.HasIndex("PortfolioId", "SharedWithUserId")
-                        .IsUnique();
-
-                    b.ToTable("PortfolioShares");
-                });
-
             modelBuilder.Entity("Mineplex.FinPlanner.Api.Models.PriceSource", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1407,15 +1361,6 @@ namespace Mineplex.FinPlanner.Api.Migrations
                             Name = "Imported File",
                             Priority = 10,
                             RateLimitPerMinute = 10000
-                        },
-                        new
-                        {
-                            Id = new Guid("66666666-6666-6666-6666-666666666666"),
-                            Code = "SHARESIGHT_AU",
-                            IsEnabled = true,
-                            Name = "Sharesight Australia",
-                            Priority = 5,
-                            RateLimitPerMinute = 60
                         });
                 });
 
@@ -1449,9 +1394,6 @@ namespace Mineplex.FinPlanner.Api.Migrations
                     b.Property<decimal>("CapitalGrowthVariancePercent")
                         .HasColumnType("numeric");
 
-                    b.Property<string>("CorrelationMatrixJson")
-                        .HasColumnType("text");
-
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -1466,9 +1408,6 @@ namespace Mineplex.FinPlanner.Api.Migrations
 
                     b.Property<decimal>("DiscountRate")
                         .HasColumnType("numeric");
-
-                    b.Property<string>("DistributionSettingsJson")
-                        .HasColumnType("text");
 
                     b.Property<decimal>("EstimatedGrossRent")
                         .HasColumnType("numeric");
@@ -1517,9 +1456,6 @@ namespace Mineplex.FinPlanner.Api.Migrations
                         .HasColumnType("numeric");
 
                     b.Property<Guid>("OwnerId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid?>("PortfolioId")
                         .HasColumnType("uuid");
 
                     b.Property<decimal>("RentVariancePercent")
@@ -1625,88 +1561,6 @@ namespace Mineplex.FinPlanner.Api.Migrations
                     b.HasIndex("PropertyId", "Date");
 
                     b.ToTable("PropertyValuations");
-                });
-
-            modelBuilder.Entity("Mineplex.FinPlanner.Api.Models.RebalancingSchedule", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<decimal>("CashFlowAmount")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<int>("CompletedPeriods")
-                        .HasColumnType("integer");
-
-                    b.Property<Guid>("CreatedByUserId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("CreatedDate")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("ExecutionMode")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("Interval")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<decimal>("LumpSumPercentage")
-                        .HasColumnType("decimal(5,2)");
-
-                    b.Property<DateTime?>("NextExecutionDate")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid>("PortfolioId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<int>("TotalPeriods")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("PortfolioId");
-
-                    b.ToTable("RebalancingSchedules");
-                });
-
-            modelBuilder.Entity("Mineplex.FinPlanner.Api.Models.RebalancingScheduleItem", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("ActionsJson")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<DateTime?>("ExecutedDate")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int>("PeriodNumber")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTime>("PlannedDate")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid>("ScheduleId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ScheduleId", "PeriodNumber");
-
-                    b.ToTable("RebalancingScheduleItems");
                 });
 
             modelBuilder.Entity("Mineplex.FinPlanner.Api.Models.Retirement.Liability", b =>
@@ -2062,13 +1916,7 @@ namespace Mineplex.FinPlanner.Api.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("Mineplex.FinPlanner.Api.Models.DealSimulationResult", "SimulationSnapshot")
-                        .WithMany()
-                        .HasForeignKey("SimulationSnapshotId");
-
                     b.Navigation("Deal");
-
-                    b.Navigation("SimulationSnapshot");
                 });
 
             modelBuilder.Entity("Mineplex.FinPlanner.Api.Models.Decision", b =>
@@ -2361,25 +2209,6 @@ namespace Mineplex.FinPlanner.Api.Migrations
                     b.Navigation("Owner");
                 });
 
-            modelBuilder.Entity("Mineplex.FinPlanner.Api.Models.PortfolioShare", b =>
-                {
-                    b.HasOne("Mineplex.FinPlanner.Api.Models.Portfolio", "Portfolio")
-                        .WithMany()
-                        .HasForeignKey("PortfolioId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("Mineplex.FinPlanner.Api.Models.User", "SharedWithUser")
-                        .WithMany()
-                        .HasForeignKey("SharedWithUserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Portfolio");
-
-                    b.Navigation("SharedWithUser");
-                });
-
             modelBuilder.Entity("Mineplex.FinPlanner.Api.Models.PropertyLedger", b =>
                 {
                     b.HasOne("Mineplex.FinPlanner.Api.Models.FileUpload", "FileUpload")
@@ -2406,17 +2235,6 @@ namespace Mineplex.FinPlanner.Api.Migrations
                         .IsRequired();
 
                     b.Navigation("Property");
-                });
-
-            modelBuilder.Entity("Mineplex.FinPlanner.Api.Models.RebalancingScheduleItem", b =>
-                {
-                    b.HasOne("Mineplex.FinPlanner.Api.Models.RebalancingSchedule", "Schedule")
-                        .WithMany("Items")
-                        .HasForeignKey("ScheduleId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Schedule");
                 });
 
             modelBuilder.Entity("Mineplex.FinPlanner.Api.Models.Retirement.LifeEvent", b =>
@@ -2508,11 +2326,6 @@ namespace Mineplex.FinPlanner.Api.Migrations
                     b.Navigation("SimulationResults");
 
                     b.Navigation("StatusHistory");
-                });
-
-            modelBuilder.Entity("Mineplex.FinPlanner.Api.Models.RebalancingSchedule", b =>
-                {
-                    b.Navigation("Items");
                 });
 
             modelBuilder.Entity("Mineplex.FinPlanner.Api.Models.Retirement.RetirementScenario", b =>
