@@ -19,6 +19,7 @@ namespace Mineplex.FinPlanner.Api.Data
         public DbSet<PerformanceSnapshot> PerformanceSnapshots { get; set; }
         public DbSet<TaxParcel> TaxParcels { get; set; }
         public DbSet<Goal> Goals { get; set; }
+        public DbSet<PortfolioShare> PortfolioShares { get; set; }
 
         // Price System
         public DbSet<CurrentPrice> CurrentPrices { get; set; }
@@ -46,6 +47,10 @@ namespace Mineplex.FinPlanner.Api.Data
 
         // Audit Log
         public DbSet<AuditLog> AuditLogs { get; set; }
+
+        // Rebalancing Schedules
+        public DbSet<RebalancingSchedule> RebalancingSchedules { get; set; }
+        public DbSet<RebalancingScheduleItem> RebalancingScheduleItems { get; set; }
 
         // Phase 2: Entity Structures
         public DbSet<Models.Entities.PersonAccount> PersonAccounts { get; set; }
@@ -88,6 +93,10 @@ namespace Mineplex.FinPlanner.Api.Data
                 .Property(t => t.Units)
                 .HasPrecision(18, 6);
 
+            modelBuilder.Entity<Transaction>()
+                // Optimization: Composite index for efficient date-based filtering and sorting per account
+                .HasIndex(t => new { t.AccountId, t.EffectiveDate });
+
             // Portfolio Cascade Delete Configuration
             // When a Portfolio is deleted, cascade to related entities
             modelBuilder.Entity<Account>()
@@ -109,12 +118,30 @@ namespace Mineplex.FinPlanner.Api.Data
                 .OnDelete(DeleteBehavior.Cascade);
 
             modelBuilder.Entity<PerformanceSnapshot>()
-                .HasIndex(ps => ps.PortfolioId);
+                // Optimization: Composite index for efficient dashboard history retrieval and sorting
+                .HasIndex(ps => new { ps.PortfolioId, ps.Date });
             modelBuilder.Entity<PerformanceSnapshot>()
                 .HasOne<Portfolio>()
                 .WithMany()
                 .HasForeignKey(ps => ps.PortfolioId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            // PortfolioShare: Cascade delete when portfolio is deleted
+            modelBuilder.Entity<PortfolioShare>()
+                .HasOne(ps => ps.Portfolio)
+                .WithMany()
+                .HasForeignKey(ps => ps.PortfolioId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<PortfolioShare>()
+                .HasOne(ps => ps.SharedWithUser)
+                .WithMany()
+                .HasForeignKey(ps => ps.SharedWithUserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<PortfolioShare>()
+                .HasIndex(ps => new { ps.PortfolioId, ps.SharedWithUserId })
+                .IsUnique(); // One share per user per portfolio
 
             // Account Cascade Delete Configuration
             // When an Account is deleted, cascade to holdings and transactions
@@ -239,6 +266,15 @@ namespace Mineplex.FinPlanner.Api.Data
                     Priority = 10,
                     IsEnabled = true,
                     RateLimitPerMinute = 10000 // Internal, so high limit
+                },
+                new PriceSource
+                {
+                    Id = Guid.Parse("66666666-6666-6666-6666-666666666666"),
+                    Name = "Sharesight Australia",
+                    Code = "SHARESIGHT_AU",
+                    Priority = 5,
+                    IsEnabled = true,
+                    RateLimitPerMinute = 60 // Login-based, handle with care
                 }
             );
 
@@ -363,6 +399,35 @@ namespace Mineplex.FinPlanner.Api.Data
 
             modelBuilder.Entity<Models.Retirement.Liability>()
                 .HasIndex(l => l.PortfolioId);
+
+            // Rebalancing Schedule Configuration
+            modelBuilder.Entity<RebalancingSchedule>()
+                .HasIndex(rs => rs.PortfolioId);
+
+            modelBuilder.Entity<RebalancingSchedule>()
+                .Property(rs => rs.ExecutionMode)
+                .HasConversion<string>();
+
+            modelBuilder.Entity<RebalancingSchedule>()
+                .Property(rs => rs.Interval)
+                .HasConversion<string>();
+
+            modelBuilder.Entity<RebalancingSchedule>()
+                .Property(rs => rs.Status)
+                .HasConversion<string>();
+
+            modelBuilder.Entity<RebalancingSchedule>()
+                .HasMany(rs => rs.Items)
+                .WithOne(i => i.Schedule)
+                .HasForeignKey(i => i.ScheduleId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<RebalancingScheduleItem>()
+                .Property(i => i.Status)
+                .HasConversion<string>();
+
+            modelBuilder.Entity<RebalancingScheduleItem>()
+                .HasIndex(i => new { i.ScheduleId, i.PeriodNumber });
         }
     }
 }

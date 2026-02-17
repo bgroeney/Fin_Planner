@@ -39,7 +39,11 @@
 
       <div class="action-right" v-if="!isTerminal">
          <div class="revert-dropdown-wrapper" v-if="currentStepIndex > 0">
-            <button class="btn-text-danger" @click="showRevertMenu = !showRevertMenu">
+            <button class="btn-text-danger" @click.stop="showRevertMenu = !showRevertMenu">
+               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                 <path d="M1 4v6h6M23 20v-6h-6"/>
+                 <path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"/>
+               </svg>
                Revert Status
             </button>
             <div v-if="showRevertMenu" class="revert-menu glass-card" v-click-outside="() => showRevertMenu = false">

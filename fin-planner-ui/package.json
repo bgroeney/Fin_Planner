@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "lint": "eslint src --ext .vue,.js",
     "lint:fix": "eslint src --ext .vue,.js --fix",
-    "format": "prettier --write src"
+    "format": "prettier --write src",
+    "test": "vitest"
   },
   "dependencies": {
     "apexcharts": "^5.3.6",
@@ -24,6 +25,7 @@
     "@vitejs/plugin-vue": "^6.0.1",
     "eslint": "^9.39.2",
     "eslint-plugin-vue": "^10.7.0",
+    "jsdom": "^27.4.0",
     "prettier": "^3.8.1",
     "vite": "^7.2.4",
     "vitest": "^4.0.18"

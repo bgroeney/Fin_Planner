@@ -167,6 +167,23 @@ namespace Mineplex.FinPlanner.Api.Controllers
             return Ok();
         }
 
+        // PUT: api/admin/price-sources/{id}/config
+        [HttpPut("price-sources/{id}/config")]
+        public async Task<IActionResult> UpdateSourceConfig(Guid id, [FromBody] UpdateSourceConfigRequest request)
+        {
+            var source = await _db.PriceSources.FindAsync(id);
+            if (source == null)
+            {
+                return NotFound();
+            }
+
+            source.ConfigurationJson = request.ConfigurationJson;
+            await _db.SaveChangesAsync();
+
+            _logger.LogInformation("Configuration updated for source {Source}", source.Name);
+
+            return Ok();
+        }
         // GET: api/admin/assets/price-sources
         [HttpGet("assets/price-sources")]
         public async Task<ActionResult<List<AssetPriceSourceDto>>> GetAssetPriceSources()
@@ -331,6 +348,7 @@ namespace Mineplex.FinPlanner.Api.Controllers
         public bool IsEnabled { get; set; }
         public bool HasApiKey { get; set; }
         public int RateLimitPerMinute { get; set; }
+        public string? ConfigurationJson { get; set; }
     }
 
     public class SourcePriorityUpdate
@@ -342,6 +360,11 @@ namespace Mineplex.FinPlanner.Api.Controllers
     public class UpdateApiKeyRequest
     {
         public string? ApiKey { get; set; }
+    }
+
+    public class UpdateSourceConfigRequest
+    {
+        public string? ConfigurationJson { get; set; }
     }
 
     public class AssetPriceSourceDto

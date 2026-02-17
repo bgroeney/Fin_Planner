@@ -45,16 +45,22 @@ namespace Mineplex.FinPlanner.Api.Services
             if (assetOverride != null)
             {
                 // If specific source is set, try only that one
-                if (assetOverride.PriceSource != null && assetOverride.PriceSource.IsEnabled)
+                if (assetOverride.PriceSource != null)
                 {
-                    var overrideResult = await TryGetPriceFromSourceAsync(asset, assetOverride.PriceSource, assetOverride.CustomSymbol);
-                    if (overrideResult != null)
+                    if (assetOverride.PriceSource.IsEnabled)
                     {
+                        var overrideResult = await TryGetPriceFromSourceAsync(asset, assetOverride.PriceSource, assetOverride.CustomSymbol);
+                        // Strict override: Return result (price or null) immediately. Do not fall back.
                         return overrideResult;
+                    }
+                    else
+                    {
+                        _logger.LogWarning("Asset {Symbol} override source {Source} is disabled. Skipping.", asset.Symbol, assetOverride.PriceSource.Name);
+                        return null;
                     }
                 }
 
-                // If no specific source or it failed, fall back to list BUT use the custom symbol if provided
+                // If no specific source (just custom symbol), fall back to list logic
                 var sources = await _db.PriceSources
                     .Where(s => s.IsEnabled)
                     .OrderBy(s => s.Priority)
@@ -149,22 +155,26 @@ namespace Mineplex.FinPlanner.Api.Services
                 if (provider == null) continue;
 
                 // For assets with symbol-only overrides, we need to create temp asset objects for the provider
-                var assetsToFetch = remainingAssets.Select(a =>
-                {
-                    var symbolOverride = assetsWithSymbolOnlyOverride.FirstOrDefault(o => o.asset.Id == a.Id);
-                    if (symbolOverride.customSymbol != null)
+                var assetsToFetch = remainingAssets
+                    .Where(a => provider.SupportsAsset(a)) // Only send assets this provider can handle
+                    .Select(a =>
                     {
-                        return new Asset
+                        var symbolOverride = assetsWithSymbolOnlyOverride.FirstOrDefault(o => o.asset.Id == a.Id);
+                        if (symbolOverride.customSymbol != null)
                         {
-                            Id = a.Id,
-                            Symbol = symbolOverride.customSymbol,
-                            Name = a.Name,
-                            AssetType = a.AssetType,
-                            Market = a.Market
-                        };
-                    }
-                    return a;
-                }).ToList();
+                            return new Asset
+                            {
+                                Id = a.Id,
+                                Symbol = symbolOverride.customSymbol,
+                                Name = a.Name,
+                                AssetType = a.AssetType,
+                                Market = a.Market
+                            };
+                        }
+                        return a;
+                    }).ToList();
+
+                if (!assetsToFetch.Any()) continue; // Skip provider if no supported assets
 
                 try
                 {

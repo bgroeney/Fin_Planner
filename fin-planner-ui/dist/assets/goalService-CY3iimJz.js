@@ -1,0 +1,1 @@
+import{s as t}from"./index-oVbs5Hxd.js";const r={getGoals(){return t.get("/goals")},createGoal(e){return t.post("/goals",e)},updateGoal(e,a){return t.put(`/goals/${e}`,a)},deleteGoal(e){return t.delete(`/goals/${e}`)}};export{r as g};

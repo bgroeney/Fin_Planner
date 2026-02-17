@@ -17,6 +17,9 @@ namespace Mineplex.FinPlanner.Api.Services
         Task UpdatePortfolioAsync(Guid userId, Guid portfolioId, UpdatePortfolioDto dto);
         Task UpdatePortfolioAssetCategoryAsync(Guid portfolioId, Guid assetId, Guid categoryId);
         Task<List<AssetTransactionDto>> GetAssetTransactionsAsync(Guid userId, Guid portfolioId, Guid assetId, int page, int pageSize);
+        Task<CategoryTargetDto> AddCategoryAsync(Guid portfolioId, CategoryTargetDto dto);
+        Task UpdateCategoryAsync(Guid portfolioId, Guid categoryId, CategoryTargetDto dto);
+        Task DeleteCategoryAsync(Guid portfolioId, Guid categoryId);
     }
 
     public class PortfolioService : IPortfolioService
@@ -34,30 +37,44 @@ namespace Mineplex.FinPlanner.Api.Services
 
         public async Task<List<PortfolioDto>> GetPortfoliosAsync(Guid userId)
         {
-            // 1. Fetch all portfolios for the user with benchmark asset included
-            var portfolios = await _context.Portfolios
+            // 1. Fetch owned portfolios with benchmark asset included
+            var ownedPortfolios = await _context.Portfolios
                 .Where(p => p.OwnerId == userId)
                 .Include(p => p.BenchmarkAsset)
                 .ToListAsync();
 
-            if (!portfolios.Any()) return new List<PortfolioDto>();
+            // 2. Fetch shared portfolios
+            var sharedPortfolioIds = await _context.PortfolioShares
+                .Where(ps => ps.SharedWithUserId == userId)
+                .Select(ps => ps.PortfolioId)
+                .ToListAsync();
 
-            var portfolioIds = portfolios.Select(p => p.Id).ToList();
+            var sharedPortfolios = await _context.Portfolios
+                .Where(p => sharedPortfolioIds.Contains(p.Id))
+                .Include(p => p.BenchmarkAsset)
+                .ToListAsync();
 
-            // 2. Fetch all categories for these portfolios in one query
+            var allPortfolios = ownedPortfolios.Concat(sharedPortfolios).ToList();
+            var sharedSet = sharedPortfolioIds.ToHashSet();
+
+            if (!allPortfolios.Any()) return new List<PortfolioDto>();
+
+            var portfolioIds = allPortfolios.Select(p => p.Id).ToList();
+
+            // 3. Fetch all categories for these portfolios in one query
             var allCategories = await _context.AssetCategories
                 .Where(c => portfolioIds.Contains(c.PortfolioId))
                 .OrderBy(c => c.DisplayOrder)
                 .ToListAsync();
 
-            // 3. Fetch all accounts for these portfolios
+            // 4. Fetch all accounts for these portfolios
             var allAccounts = await _context.Accounts
                 .Where(a => portfolioIds.Contains(a.PortfolioId))
                 .ToListAsync();
 
             var accountIds = allAccounts.Select(a => a.Id).ToList();
 
-            // 4. Fetch all holdings for these accounts with asset and current price included
+            // 5. Fetch all holdings for these accounts with asset and current price included
             var allHoldings = await _context.Holdings
                 .Where(h => accountIds.Contains(h.AccountId))
                 .Include(h => h.Asset)
@@ -66,12 +83,12 @@ namespace Mineplex.FinPlanner.Api.Services
 
             var result = new List<PortfolioDto>();
 
-            // 5. Build lookup dictionaries for performance
+            // 6. Build lookup dictionaries for performance
             var categoriesByPortfolio = allCategories.ToLookup(c => c.PortfolioId);
             var accountsByPortfolio = allAccounts.ToLookup(a => a.PortfolioId);
             var holdingsByAccount = allHoldings.ToLookup(h => h.AccountId);
 
-            foreach (var p in portfolios)
+            foreach (var p in allPortfolios)
             {
                 var pCategories = categoriesByPortfolio[p.Id].ToList();
                 var pAccountIds = accountsByPortfolio[p.Id].Select(a => a.Id);
@@ -88,6 +105,7 @@ namespace Mineplex.FinPlanner.Api.Services
 
                 var dto = MapToDto(p, pCategories);
                 dto.TotalValue = totalVal;
+                dto.IsShared = sharedSet.Contains(p.Id);
                 result.Add(dto);
             }
 
@@ -96,9 +114,24 @@ namespace Mineplex.FinPlanner.Api.Services
 
         public async Task<PortfolioDto> GetPortfolioByIdAsync(Guid userId, Guid portfolioId)
         {
+            // Check ownership first
             var portfolio = await _context.Portfolios
                 .Include(p => p.BenchmarkAsset)
                 .FirstOrDefaultAsync(p => p.Id == portfolioId && p.OwnerId == userId);
+
+            // If not owner, check if shared with user
+            if (portfolio == null)
+            {
+                var hasShare = await _context.PortfolioShares
+                    .AnyAsync(ps => ps.PortfolioId == portfolioId && ps.SharedWithUserId == userId);
+
+                if (hasShare)
+                {
+                    portfolio = await _context.Portfolios
+                        .Include(p => p.BenchmarkAsset)
+                        .FirstOrDefaultAsync(p => p.Id == portfolioId);
+                }
+            }
 
             if (portfolio == null) throw new KeyNotFoundException("Portfolio not found");
 
@@ -107,7 +140,9 @@ namespace Mineplex.FinPlanner.Api.Services
                 .OrderBy(c => c.DisplayOrder)
                 .ToListAsync();
 
-            return MapToDto(portfolio, categories);
+            var dto = MapToDto(portfolio, categories);
+            dto.IsShared = portfolio.OwnerId != userId;
+            return dto;
         }
 
         public async Task<PortfolioDto> CreatePortfolioAsync(Guid userId, CreatePortfolioDto dto)
@@ -172,8 +207,21 @@ namespace Mineplex.FinPlanner.Api.Services
 
         public async Task<AssetDetailDto> GetAssetDetailsAsync(Guid userId, Guid portfolioId, Guid assetId)
         {
-            // 1. Verify Portfolio
+            // 1. Verify Portfolio (Owner or Shared)
             var portfolio = await _context.Portfolios.FirstOrDefaultAsync(p => p.Id == portfolioId && p.OwnerId == userId);
+
+            if (portfolio == null)
+            {
+                // Check if shared
+                var hasShare = await _context.PortfolioShares
+                    .AnyAsync(ps => ps.PortfolioId == portfolioId && ps.SharedWithUserId == userId);
+
+                if (hasShare)
+                {
+                    portfolio = await _context.Portfolios.FirstOrDefaultAsync(p => p.Id == portfolioId);
+                }
+            }
+
             if (portfolio == null) throw new KeyNotFoundException("Portfolio not found");
 
             // 2. Get Asset
@@ -400,6 +448,82 @@ namespace Mineplex.FinPlanner.Api.Services
 
             await _context.SaveChangesAsync();
         }
+
+        public async Task<CategoryTargetDto> AddCategoryAsync(Guid portfolioId, CategoryTargetDto dto)
+        {
+            // Validate total won't exceed 100%
+            var currentSum = await _context.AssetCategories
+                .Where(c => c.PortfolioId == portfolioId)
+                .SumAsync(c => c.TargetPercentage);
+            if (currentSum + dto.TargetPercentage > 100)
+                throw new InvalidOperationException($"Total allocation would be {currentSum + dto.TargetPercentage}%, which exceeds 100%.");
+
+            var maxOrder = await _context.AssetCategories
+                .Where(c => c.PortfolioId == portfolioId)
+                .MaxAsync(c => (int?)c.DisplayOrder) ?? 0;
+
+            var category = new AssetCategory
+            {
+                Id = Guid.NewGuid(),
+                PortfolioId = portfolioId,
+                Name = dto.Name,
+                Code = dto.Code,
+                TargetPercentage = dto.TargetPercentage,
+                DisplayOrder = maxOrder + 1
+            };
+
+            _context.AssetCategories.Add(category);
+            await _context.SaveChangesAsync();
+
+            return new CategoryTargetDto
+            {
+                Id = category.Id,
+                Name = category.Name,
+                Code = category.Code,
+                TargetPercentage = category.TargetPercentage,
+                DisplayOrder = category.DisplayOrder
+            };
+        }
+
+        public async Task UpdateCategoryAsync(Guid portfolioId, Guid categoryId, CategoryTargetDto dto)
+        {
+            var category = await _context.AssetCategories
+                .FirstOrDefaultAsync(c => c.Id == categoryId && c.PortfolioId == portfolioId);
+            if (category == null) throw new KeyNotFoundException("Category not found.");
+
+            // Validate total won't exceed 100% (excluding this category's current value)
+            var othersSum = await _context.AssetCategories
+                .Where(c => c.PortfolioId == portfolioId && c.Id != categoryId)
+                .SumAsync(c => c.TargetPercentage);
+            if (othersSum + dto.TargetPercentage > 100)
+                throw new InvalidOperationException($"Total allocation would be {othersSum + dto.TargetPercentage}%, which exceeds 100%.");
+
+            category.Name = dto.Name;
+            category.Code = dto.Code;
+            category.TargetPercentage = dto.TargetPercentage;
+            if (dto.DisplayOrder > 0) category.DisplayOrder = dto.DisplayOrder;
+
+            await _context.SaveChangesAsync();
+        }
+
+        public async Task DeleteCategoryAsync(Guid portfolioId, Guid categoryId)
+        {
+            var category = await _context.AssetCategories
+                .FirstOrDefaultAsync(c => c.Id == categoryId && c.PortfolioId == portfolioId);
+            if (category == null) throw new KeyNotFoundException("Category not found.");
+
+            // Unassign holdings from this category
+            var holdings = await _context.Holdings
+                .Include(h => h.Account)
+                .Where(h => h.Account.PortfolioId == portfolioId && h.CategoryId == categoryId)
+                .ToListAsync();
+
+            foreach (var h in holdings) h.CategoryId = null;
+
+            _context.AssetCategories.Remove(category);
+            await _context.SaveChangesAsync();
+        }
+
         public async Task<List<AssetTransactionDto>> GetAssetTransactionsAsync(Guid userId, Guid portfolioId, Guid assetId, int page, int pageSize)
         {
             // 1. Verify Portfolio (security)

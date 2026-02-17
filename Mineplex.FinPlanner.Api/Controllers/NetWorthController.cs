@@ -24,8 +24,11 @@ namespace Mineplex.FinPlanner.Api.Controllers
         public async Task<ActionResult<NetWorthSummary>> GetNetWorth(Guid portfolioId)
         {
             var assetsValue = await _context.Holdings
+                .Include(h => h.Asset)
+                    .ThenInclude(a => a.CurrentPrice)
                 .Where(h => h.Account.PortfolioId == portfolioId)
-                .SumAsync(h => h.CurrentValue);
+                .Select(h => h.Units * (h.Asset.CurrentPrice != null ? h.Asset.CurrentPrice.Price : 0))
+                .SumAsync(x => x);
 
             var liabilitiesValue = await _context.Liabilities
                 .Where(l => l.PortfolioId == portfolioId && !l.IsPaidOff)

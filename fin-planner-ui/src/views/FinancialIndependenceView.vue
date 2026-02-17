@@ -192,6 +192,7 @@ import { ref, reactive, computed, onMounted } from 'vue';
 import api from '../services/api';
 import { usePortfolioStore } from '../stores/portfolio';
 import MoneyFlow from '../components/MoneyFlow.vue';
+import { formatNumber } from '../utils/formatters';
 
 const portfolioStore = usePortfolioStore();
 const loading = ref(false);
@@ -230,9 +231,10 @@ const probabilityColor = computed(() => {
   return '#ef4444'; // Danger
 });
 
+// Use the shared formatNumber for consistent formatting
 const formatCurrency = (val) => {
   if (val === undefined || val === null) return '0';
-  return val.toLocaleString(undefined, { maximumFractionDigits: 0 });
+  return formatNumber(val, 0);
 };
 
 const fireNumber = computed(() => params.targetIncome * 25);

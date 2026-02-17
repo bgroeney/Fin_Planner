@@ -207,8 +207,9 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, nextTick } from 'vue';
+import { ref, computed, onMounted, nextTick, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+import { usePortfolioStore } from '../stores/portfolio';
 import api from '../services/api';
 import { runSimulation, formatCurrency as formatCurrencyUtil } from '../services/monteCarloEngine';
 import MoneyBoxLoader from '../components/MoneyBoxLoader.vue';
@@ -231,6 +232,7 @@ const vClickOutside = {
 
 const route = useRoute();
 const useRouterInstance = useRouter();
+const portfolioStore = usePortfolioStore();
 
 // State
 const loading = ref(true);
@@ -241,6 +243,8 @@ const statusFilter = ref('');
 const showNewDealModal = ref(false);
 const creatingDeal = ref(false);
 const runningSimulation = ref(false);
+
+const currentPortfolioId = computed(() => portfolioStore.currentPortfolioId);
 
 // Header State
 const showDealDropdown = ref(false);
@@ -283,9 +287,14 @@ onMounted(async () => {
 
 // Methods
 async function fetchDeals() {
+  if (!currentPortfolioId.value) {
+    deals.value = [];
+    loading.value = false;
+    return;
+  }
   try {
     loading.value = true;
-    const response = await api.get('/propertydeals');
+    const response = await api.get(`/propertydeals?portfolioId=${currentPortfolioId.value}`);
     deals.value = response.data;
   } catch (error) {
     console.error('Failed to fetch deals:', error);
@@ -294,10 +303,10 @@ async function fetchDeals() {
   }
 }
 
-async function selectDeal(dealId) {
+async function selectDeal(dealId, force = false) {
   try {
     // Optimistic active state update if already loaded
-    if (deals.value.length > 0) {
+    if (deals.value.length > 0 && !force) {
        // Just ensure we don't flash empty if we click the same one
        if (selectedDeal.value?.id === dealId) return; 
     }
@@ -363,7 +372,10 @@ function openNewDealModalFromDropdown() {
 async function createDeal() {
   try {
     creatingDeal.value = true;
-    const response = await api.post('/propertydeals', newDeal.value);
+    const response = await api.post('/propertydeals', {
+      ...newDeal.value,
+      portfolioId: currentPortfolioId.value
+    });
     showNewDealModal.value = false;
     await fetchDeals(); // Refresh list
     await selectDeal(response.data.id); // Select new deal
@@ -487,7 +499,7 @@ async function handleRecordDecision(decision, rationale) {
 
 async function handleRefresh() {
   if (selectedDeal.value) {
-    await selectDeal(selectedDeal.value.id);
+    await selectDeal(selectedDeal.value.id, true);
   }
 }
 
@@ -504,6 +516,11 @@ function getStatusClass(status) {
 function formatCurrency(value) {
   return formatCurrencyUtil(value);
 }
+
+// Watch for portfolio changes
+watch(currentPortfolioId, () => {
+  fetchDeals();
+});
 </script>
 
 <style scoped>
@@ -875,29 +892,8 @@ function formatCurrency(value) {
 }
 
 /* Modal and inputs (reused from previous) */
-.modal-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.6);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: var(--z-modal-backdrop);
-  backdrop-filter: blur(4px);
-}
-
 .deal-modal {
   width: 520px;
-  border: 1px solid var(--glass-border);
-  box-shadow: var(--shadow-2xl);
-}
-
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: var(--spacing-lg);
-  border-bottom: 1px solid var(--color-border);
 }
 
 .input-lg {
@@ -911,17 +907,6 @@ function formatCurrency(value) {
    font-size: 24px;
    cursor: pointer;
    color: var(--color-text-muted);
-}
-
-.modal-body {
-   padding: var(--spacing-lg);
-}
-
-.modal-actions {
-   display: flex;
-   justify-content: flex-end;
-   gap: 12px;
-   margin-top: 24px;
 }
 
 .empty-state-large {

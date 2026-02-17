@@ -132,6 +132,21 @@ namespace Mineplex.FinPlanner.Api.Services.PriceProviders
                 return $"{asset.Symbol}.AX";
             }
 
+            // If no market is specified, prioritize ASX for known dual-listed or common ETFs
+            // This prevents VEU/VTS resolving to the US listing (~$80 USD) instead of ASX (~$113 AUD)
+            if (string.IsNullOrEmpty(asset.Market))
+            {
+                var commonAsxEtfs = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+                {
+                    "VEU", "VTS", "IVV", "IJR", "IJH", "IOO", "IXI", "IXJ", "IZZ"
+                };
+
+                if (commonAsxEtfs.Contains(asset.Symbol))
+                {
+                    return $"{asset.Symbol}.AX";
+                }
+            }
+
             // Return symbol as-is for other markets
             return asset.Symbol;
         }
