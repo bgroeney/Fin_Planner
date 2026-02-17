@@ -43,10 +43,31 @@ namespace Mineplex.FinPlanner.Api.Services
             _context.PerformanceSnapshots.RemoveRange(existing);
 
             // 3. Replay history day by day
-            // Optimization: In a real system we wouldn't fetch price for EVERY day in a loop.
-            // We would fetch all historical prices in bulk.
+            // Optimization: Bulk fetch prices to avoid N+1 queries
 
-            // For now, simpler implementation: 
+            // Get all involved assets to optimize queries
+            var assetIds = transactions.Select(t => t.AssetId).Distinct().ToList();
+
+            // Fetch all historical prices for involved assets up to the end date
+            // We order by Date Descending in memory for efficient lookup
+            var historicalPrices = await _context.HistoricalPrices
+                .Where(hp => assetIds.Contains(hp.AssetId) && hp.Date <= endDate)
+                .Select(hp => new { hp.AssetId, hp.Date, hp.ClosePrice })
+                .ToListAsync();
+
+            // Create a lookup: AssetId -> List of prices (ordered by Date Descending)
+            var priceLookup = historicalPrices
+                .GroupBy(hp => hp.AssetId)
+                .ToDictionary(
+                    g => g.Key,
+                    g => g.OrderByDescending(p => p.Date).ToList()
+                );
+
+            // Bulk fetch current prices for fallback
+            var currentPrices = await _context.CurrentPrices
+                .Where(cp => assetIds.Contains(cp.AssetId))
+                .ToDictionaryAsync(cp => cp.AssetId, cp => cp.Price);
+
             // We iterate through every transaction to build the "Units Held" state.
             // Then for each day, we value those units.
 
@@ -77,30 +98,31 @@ namespace Mineplex.FinPlanner.Api.Services
                 decimal totalValue = 0;
                 var allocation = new Dictionary<string, decimal>();
 
-                // We need prices for this date.
-                // NOTE: This could be slow if doing N+1 queries. 
-                // In production, fetch all HistoryPrices for these AssetIds range [Start, End].
                 foreach (var kvp in portfolioHoldings.Where(x => x.Value > 0))
                 {
                     var assetId = kvp.Key;
                     var units = kvp.Value;
+                    decimal price = 0;
 
-                    // Try get historical price
-                    var price = await _context.HistoricalPrices
-                        .Where(hp => hp.AssetId == assetId && hp.Date <= date)
-                        .OrderByDescending(hp => hp.Date)
-                        .Select(hp => hp.ClosePrice)
-                        .FirstOrDefaultAsync();
+                    // Try get historical price from memory lookup
+                    if (priceLookup.TryGetValue(assetId, out var prices))
+                    {
+                        // Find the most recent price on or before the current date
+                        // Since the list is ordered by Date Descending, the first match is the closest one
+                        var match = prices.FirstOrDefault(p => p.Date <= date);
+                        if (match != null)
+                        {
+                            price = match.ClosePrice;
+                        }
+                    }
 
-                    // Fallback to current price if recent
+                    // Fallback to current price if recent and no historical price found (or 0)
                     if (price == 0 && date >= DateTime.UtcNow.AddDays(-7))
                     {
-                        // This is a rough estimation fallback
-                        var current = await _context.Assets.Include(a => a.CurrentPrice)
-                           .Where(a => a.Id == assetId)
-                           .Select(a => a.CurrentPrice != null ? a.CurrentPrice.Price : 0)
-                           .FirstOrDefaultAsync();
-                        price = current;
+                        if (currentPrices.TryGetValue(assetId, out var currentPrice))
+                        {
+                            price = currentPrice;
+                        }
                     }
 
                     totalValue += units * price;
