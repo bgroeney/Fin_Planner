@@ -29,7 +29,7 @@ namespace Mineplex.FinPlanner.Api.Services
         private static readonly Dictionary<string, int> MarketIds = new()
         {
             { "FundAU", 30 }, // Australian Managed Funds
-            { "ASX", 14 }     // Australian Stock Exchange (approx, need to verify if needed)
+            { "ASX", 2 }      // Australian Stock Exchange
         };
 
         public SharesightService(
@@ -66,8 +66,8 @@ namespace Mineplex.FinPlanner.Api.Services
                             var config = JsonSerializer.Deserialize<Dictionary<string, string>>(source.ConfigurationJson);
                             if (config != null)
                             {
-                                config.TryGetValue("Username", out username);
-                                config.TryGetValue("Password", out password);
+                                if (config.TryGetValue("Username", out var u) && u != null) username = u;
+                                if (config.TryGetValue("Password", out var p) && p != null) password = p;
                             }
                         }
                         catch (Exception ex)
@@ -167,13 +167,24 @@ namespace Mineplex.FinPlanner.Api.Services
                 {
                     // Clean the code from the response (it might have HTML tags like <b>VAN0111AU</b>)
                     var cleanCode = Regex.Replace(instrument.Code, "<.*?>", "");
-                    if (string.Equals(cleanCode, code, StringComparison.OrdinalIgnoreCase))
+
+                    bool match = string.Equals(cleanCode, code, StringComparison.OrdinalIgnoreCase);
+
+                    // Fallback: If we searched for X.FundAU but Sharesight returns X, accept it.
+                    if (!match && code.EndsWith(".FundAU", StringComparison.OrdinalIgnoreCase))
+                    {
+                        var baseCode = code.Substring(0, code.Length - 7); // Remove .FundAU
+                        match = string.Equals(cleanCode, baseCode, StringComparison.OrdinalIgnoreCase);
+                    }
+
+                    if (match)
                     {
                         return instrument.Id;
                     }
                 }
 
-                _logger.LogInformation($"Instrument {code} not found in Sharesight.");
+                var candidateCodes = string.Join(", ", json?.Instruments?.Select(i => i.Code) ?? Array.Empty<string>());
+                _logger.LogInformation($"Instrument {code} not found in Sharesight. Candidates were: {candidateCodes}");
                 return null;
             }
             catch (Exception ex)
@@ -205,19 +216,25 @@ namespace Mineplex.FinPlanner.Api.Services
                     return null;
                 }
 
-                var json = await response.Content.ReadFromJsonAsync<SharesightPriceResponse>();
+                var content = await response.Content.ReadAsStringAsync();
+                var json = JsonSerializer.Deserialize<SharesightResponse>(content);
 
-                // The response has a "series" array. We want the last point's "y2" value.
-                if (json?.Series != null && json.Series.Length > 0)
+                // The response has graph -> series -> data. We want the last point's "y2" value.
+                if (json?.Graph?.Series != null && json.Graph.Series.Length > 0)
                 {
-                    var lastPoint = json.Series[^1]; // Get the last data point
-                    if (lastPoint.Y2.HasValue)
+                    var series = json.Graph.Series[0];
+                    if (series.Data != null && series.Data.Length > 0)
                     {
-                        return lastPoint.Y2.Value;
+                        var lastPoint = series.Data[^1]; // Get the last data point
+                        if (lastPoint.Y2.HasValue)
+                        {
+                            return lastPoint.Y2.Value;
+                        }
                     }
                 }
 
-                _logger.LogWarning($"No price data found for instrument ID {instrumentId}");
+                // Only log warning if strictly no data found
+                _logger.LogWarning($"Sharesight returned no usable price data for ID {instrumentId}. Response: {content}");
                 return null;
             }
             catch (Exception ex)
@@ -246,10 +263,22 @@ namespace Mineplex.FinPlanner.Api.Services
             public string Name { get; set; } = "";
         }
 
-        private class SharesightPriceResponse
+        private class SharesightResponse
+        {
+            [System.Text.Json.Serialization.JsonPropertyName("graph")]
+            public SharesightGraph? Graph { get; set; }
+        }
+
+        private class SharesightGraph
         {
             [System.Text.Json.Serialization.JsonPropertyName("series")]
-            public SharesightPricePoint[] Series { get; set; } = Array.Empty<SharesightPricePoint>();
+            public SharesightSeries[] Series { get; set; } = Array.Empty<SharesightSeries>();
+        }
+
+        private class SharesightSeries
+        {
+            [System.Text.Json.Serialization.JsonPropertyName("data")]
+            public SharesightPricePoint[] Data { get; set; } = Array.Empty<SharesightPricePoint>();
         }
 
         private class SharesightPricePoint

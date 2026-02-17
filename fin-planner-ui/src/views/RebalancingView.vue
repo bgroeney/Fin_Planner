@@ -163,7 +163,7 @@
               </div>
               <div class="action-math">
                 <div class="units">{{ action.units.toFixed(4) }} units</div>
-                <div class="price">@ {{ formatCurrency(action.price) }}</div>
+                <div class="price">@ {{ formatCurrencyPrecise(action.price) }}</div>
               </div>
               <div class="action-total">
                 {{ formatCurrency(action.amount) }}
@@ -356,6 +356,7 @@ import { ref, computed, onMounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { usePortfolioStore } from '../stores/portfolio';
 import api from '../services/api';
+import { formatCurrency, formatCurrencyPrecise } from '../utils/formatters';
 
 const router = useRouter();
 const portfolioStore = usePortfolioStore();
@@ -382,7 +383,7 @@ const lumpSumPct = ref(50);
 
 const currentPortfolioId = computed(() => portfolioStore.currentPortfolioId);
 
-const formatCurrency = (val) => new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD' }).format(val || 0);
+// Local formatters removed in favor of shared ones
 
 const formatDate = (dateStr) => {
   const d = new Date(dateStr);

@@ -11,8 +11,9 @@ namespace Mineplex.FinPlanner.Api.Services.PriceProviders
         private readonly ISharesightService _sharesightService;
         private readonly ILogger<SharesightAuProvider> _logger;
 
-        // Matches APIR codes like VAN0111AU, SPC5039AU
+        // Matches APIR codes like VAN0111AU, also allows 3 or 4 letter ASX codes
         private static readonly Regex ApirRegex = new(@"^[A-Z]{3}[0-9]{4}[A-Z]{2}$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+        private static readonly Regex AsxRegex = new(@"^[A-Z]{3,4}$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
         public string ProviderCode => "SHARESIGHT_AU";
 
@@ -26,16 +27,40 @@ namespace Mineplex.FinPlanner.Api.Services.PriceProviders
         {
             if (string.IsNullOrEmpty(asset.Symbol)) return false;
 
-            // Prioritize managed funds with APIR-like codes
-            return ApirRegex.IsMatch(asset.Symbol) && (asset.Market == "AU" || asset.Market == "FundAU" || string.IsNullOrEmpty(asset.Market));
+            // Prioritize managed funds with APIR-like codes or 3-letter ASX codes
+            bool isApir = ApirRegex.IsMatch(asset.Symbol);
+            bool isAsx = AsxRegex.IsMatch(asset.Symbol);
+
+            return (isApir || isAsx) && (asset.Market == "AU" || asset.Market == "FundAU" || asset.Market == "ASX" || string.IsNullOrEmpty(asset.Market));
         }
 
         public async Task<PriceResult> GetCurrentPriceAsync(Asset asset, string? apiKey = null)
         {
             try
             {
-                // 1. Search for the instrument ID
-                var instrumentId = await _sharesightService.SearchInstrumentIdAsync(asset.Symbol, "FundAU");
+                int? instrumentId = null;
+
+                // 1. Determine market precedence
+                // If it looks like an APIR, try FundAU
+                if (ApirRegex.IsMatch(asset.Symbol))
+                {
+                    instrumentId = await _sharesightService.SearchInstrumentIdAsync(asset.Symbol, "FundAU");
+                }
+
+                // If not found (or not APIR), and looks like ASX, try ASX
+                if (!instrumentId.HasValue && AsxRegex.IsMatch(asset.Symbol))
+                {
+                    if (ApirRegex.IsMatch(asset.Symbol))
+                    {
+                        // Log if we are falling back from APIR to ASX (unlikely but possible if regex overlaps? No, 9 vs 3 chars)
+                    }
+                    else
+                    {
+                        // It's likely an ASX code (3 or 4 letters), so we try ASX
+                        _logger.LogInformation($"Searching {asset.Symbol} in ASX market.");
+                        instrumentId = await _sharesightService.SearchInstrumentIdAsync(asset.Symbol, "ASX");
+                    }
+                }
 
                 if (!instrumentId.HasValue)
                 {

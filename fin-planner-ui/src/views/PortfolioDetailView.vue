@@ -85,7 +85,7 @@
                 <div class="holding-symbol">{{ h.symbol }}</div>
               </td>
               <td class="col-num">{{ h.units.toLocaleString('en-AU', { maximumFractionDigits: 4 }) }}</td>
-              <td class="col-num">{{ h.units !== 0 ? formatCurrency(h.currentValue / h.units) : '-' }}</td>
+              <td class="col-num">{{ h.units !== 0 ? formatCurrencyPrecise(h.currentValue / h.units) : '-' }}</td>
               <td class="col-num font-bold">{{ formatCurrency(h.currentValue) }}</td>
               <td class="col-num">{{ totalPortfolioValue ? ((h.currentValue / totalPortfolioValue) * 100).toFixed(1) : '0' }}%</td>
             </tr>
@@ -126,7 +126,7 @@ import api from '../services/api';
 import AllocationChart from '../components/AllocationChart.vue';
 import AssetDetailDrawer from '../components/AssetDetailDrawer.vue';
 import PortfolioSettingsModal from '../components/PortfolioSettingsModal.vue';
-import { formatCurrency } from '../utils/formatters';
+import { formatCurrency, formatCurrencyPrecise } from '../utils/formatters';
 
 const route = useRoute();
 const router = useRouter();

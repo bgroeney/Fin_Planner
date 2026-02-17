@@ -207,8 +207,21 @@ namespace Mineplex.FinPlanner.Api.Services
 
         public async Task<AssetDetailDto> GetAssetDetailsAsync(Guid userId, Guid portfolioId, Guid assetId)
         {
-            // 1. Verify Portfolio
+            // 1. Verify Portfolio (Owner or Shared)
             var portfolio = await _context.Portfolios.FirstOrDefaultAsync(p => p.Id == portfolioId && p.OwnerId == userId);
+
+            if (portfolio == null)
+            {
+                // Check if shared
+                var hasShare = await _context.PortfolioShares
+                    .AnyAsync(ps => ps.PortfolioId == portfolioId && ps.SharedWithUserId == userId);
+
+                if (hasShare)
+                {
+                    portfolio = await _context.Portfolios.FirstOrDefaultAsync(p => p.Id == portfolioId);
+                }
+            }
+
             if (portfolio == null) throw new KeyNotFoundException("Portfolio not found");
 
             // 2. Get Asset

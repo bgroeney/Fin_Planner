@@ -19,97 +19,77 @@
       <div v-else-if="asset" class="drawer-body">
         <!-- Header -->
         <div class="drawer-header">
-          <div class="asset-info">
+          <div class="header-main">
             <div class="asset-symbol">{{ asset.symbol }}</div>
-            <div class="asset-name">{{ asset.name }}</div>
-            <div class="asset-category">
-              <div class="category-selector" @click.stop="toggleCategoryDropdown" :class="{ open: showCategoryDropdown }">
-                <span class="category-badge interactive">{{ getCategoryName(asset.categoryId) }}</span>
-                <svg class="cat-chevron" xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
-              </div>
-              <div v-if="showCategoryDropdown" class="category-dropdown">
-                <div
-                  v-for="cat in categories"
-                  :key="cat.id"
-                  class="cat-option"
-                  :class="{ selected: asset.categoryId === cat.id }"
-                  @click.stop="changeCategory(cat.id)"
-                >
-                  {{ cat.name }}
-                  <svg v-if="asset.categoryId === cat.id" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+            <div class="header-badges">
+                <!-- Converted to button for better a11y and click handling -->
+                <button class="category-selector" @click.stop="toggleCategoryDropdown" :class="{ open: showCategoryDropdown }" type="button">
+                    <span class="category-badge">{{ getCategoryName(asset.categoryId) }}</span>
+                    <svg class="cat-chevron" xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                </button>
+                
+                <div v-if="showCategoryDropdown" class="category-dropdown" @click.stop>
+                    <div
+                    v-for="cat in categories"
+                    :key="cat.id"
+                    class="cat-option"
+                    :class="{ selected: asset.categoryId === cat.id }"
+                    @click="changeCategory(cat.id)"
+                    >
+                    {{ cat.name }}
+                    <svg v-if="asset.categoryId === cat.id" xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+                    </div>
+                    <div v-if="categories.length === 0" class="cat-option disabled">No categories found</div>
                 </div>
-                <div v-if="categories.length === 0" class="cat-option disabled">No categories defined</div>
-              </div>
-              <span v-if="categorySaving" class="cat-saving">Saving...</span>
             </div>
           </div>
+          <div class="asset-name">{{ asset.name }}</div>
           <button @click="$emit('close')" class="btn-close" title="Close">
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
           </button>
         </div>
 
-        <!-- Value Display -->
-        <div class="value-section">
-          <div class="current-value">{{ formatCurrency(asset.position.currentValue) }}</div>
-          <div class="return-badge" :class="{ positive: asset.position.returnPercent >= 0, negative: asset.position.returnPercent < 0 }">
-            {{ asset.position.returnPercent >= 0 ? '+' : '' }}{{ asset.position.returnPercent.toFixed(2) }}%
-          </div>
+        <!-- Compact Value & Actions Row -->
+        <div class="value-actions-row">
+            <div class="value-group">
+                <div class="current-value">{{ formatCurrency(asset.position.currentValue) }}</div>
+                <div class="return-badge" :class="{ positive: asset.position.returnPercent >= 0, negative: asset.position.returnPercent < 0 }">
+                    {{ asset.position.returnPercent >= 0 ? '+' : '' }}{{ asset.position.returnPercent.toFixed(2) }}%
+                </div>
+            </div>
+            <div class="actions-group">
+                <button @click="openDecisionForm('Buy')" class="btn btn-sm btn-success">Buy</button>
+                <button @click="openDecisionForm('Sell')" class="btn btn-sm btn-danger">Sell</button>
+            </div>
         </div>
 
-        <!-- Chart -->
+        <!-- Chart with Time Selector -->
         <div class="chart-section">
-          <apexchart 
-            type="area" 
-            :options="chartOptions" 
-            :series="chartSeries" 
-            height="130"
-          />
-        </div>
-
-        <!-- Decision Actions -->
-        <div class="actions-section">
-          <div v-if="!showDecisionForm" class="action-buttons">
-            <button @click="openDecisionForm('Buy')" class="btn btn-success flex-1">Buy</button>
-            <button @click="openDecisionForm('Sell')" class="btn btn-danger flex-1">Sell</button>
-          </div>
-          
-          <div v-else class="decision-form card">
-            <h4 class="form-title">{{ decisionType }} {{ asset.symbol }}</h4>
-            
-            <div class="form-group">
-              <label>Units</label>
-              <input v-model.number="decisionUnits" type="number" class="form-input" placeholder="0" />
-            </div>
-
-            <div v-if="decisionType === 'Sell'" class="form-group">
-              <label>Tax Optimization Method</label>
-              <select v-model="allocationMethod" class="form-select">
-                <option value="FIFO">First-In-First-Out (Standard)</option>
-                <option value="MinTax">Minimize Tax (High Cost/Long Term)</option>
-                <option value="MaxGain">Maximize Gain (Low Cost)</option>
-              </select>
-              <div class="tax-hint" v-if="projectedTax !== null">
-                Projected Taxable Gain: {{ formatCurrency(projectedTax) }}
-              </div>
-            </div>
-
-            <div class="form-group">
-              <label>Rationale</label>
-              <textarea v-model="decisionRationale" class="form-input" rows="2" placeholder="Why make this trade?"></textarea>
-            </div>
-
-            <div class="form-actions">
-              <button @click="showDecisionForm = false" class="btn btn-secondary">Cancel</button>
-              <button @click="submitDecision" class="btn btn-primary" :disabled="submitting">
-                {{ submitting ? 'Saving...' : 'Create Decision' }}
+          <div class="chart-controls">
+              <button 
+                v-for="range in timeRanges" 
+                :key="range" 
+                @click="timeRange = range"
+                :class="['range-btn', { active: timeRange === range }]"
+              >
+                {{ range }}
               </button>
-            </div>
           </div>
+          <!-- Increased height slightly to accommodate axes -->
+          <div class="chart-container" v-if="hasChartData">
+              <apexchart 
+                :key="timeRange"
+                type="area" 
+                :options="chartOptions" 
+                :series="chartSeries" 
+                height="180"
+              />
+          </div>
+          <div v-else class="chart-empty">No data for this range</div>
         </div>
 
-        <!-- Position Stats -->
+        <!-- Position Stats (Compact) -->
         <div class="stats-section">
-          <h4 class="section-title">Position Details</h4>
           <div class="stats-grid">
             <div class="stat-item">
               <span class="stat-label">Units</span>
@@ -117,7 +97,7 @@
             </div>
             <div class="stat-item">
               <span class="stat-label">Avg Cost</span>
-              <span class="stat-value">{{ formatCurrency(Math.abs(asset.position.avgCost)) }}</span>
+              <span class="stat-value" :title="formatCurrencyPrecise(Math.abs(asset.position.avgCost))">{{ formatCurrencyPrecise(Math.abs(asset.position.avgCost)) }}</span>
             </div>
             <div class="stat-item">
               <span class="stat-label">Total Cost</span>
@@ -134,11 +114,10 @@
 
         <!-- Transactions -->
         <div class="transactions-section">
-          <h4 class="section-title">Transaction History</h4>
-          <div class="transactions-list">
+          <h4 class="section-title">History</h4>
+          <div class="transactions-list-container">
             <div v-if="loadingTx && transactions.length === 0" class="transactions-loading">
-              <div class="spinner-sm"></div>
-              Loading transactions...
+              <div class="spinner-sm"></div> Loading...
             </div>
             <div v-else-if="transactions.length === 0" class="transactions-empty">
               No transactions found
@@ -146,7 +125,7 @@
             <div v-else class="transaction-items" @scroll="handleScroll">
               <div v-for="tx in transactions" :key="tx.id" class="transaction-item">
                 <div class="tx-date">{{ formatDate(tx.date) }}</div>
-                <div class="tx-type">
+                <div class="tx-badge-col">
                   <span :class="['tx-badge', tx.type.toLowerCase()]">{{ tx.type }}</span>
                 </div>
                 <div class="tx-units">{{ tx.units.toLocaleString() }}</div>
@@ -157,14 +136,26 @@
         </div>
       </div>
     </div>
+    
+    <DecisionModal
+      v-if="showDecisionForm"
+      :isOpen="showDecisionForm"
+      :type="decisionType"
+      :assetSymbol="asset?.symbol || ''"
+      :portfolioId="portfolioId"
+      :assetId="assetId"
+      @close="showDecisionForm = false"
+      @success="onDecisionSuccess"
+    />
   </div>
 </template>
 
 <script setup>
-import { ref, watch, computed } from 'vue';
+import { ref, watch, computed, onMounted, onUnmounted } from 'vue';
 import api from '../services/api';
 import MoneyBoxLoader from './MoneyBoxLoader.vue';
-import { formatCurrency, formatDate } from '../utils/formatters';
+import DecisionModal from './DecisionModal.vue';
+import { formatCurrency, formatCurrencyPrecise, formatDate } from '../utils/formatters';
 
 const props = defineProps({
   isOpen: Boolean,
@@ -173,7 +164,7 @@ const props = defineProps({
   embedded: { type: Boolean, default: false }
 });
 
-const emit = defineEmits(['close']);
+const emit = defineEmits(['close', 'updated']);
 
 const loading = ref(false);
 const error = ref(false);
@@ -186,6 +177,83 @@ const loadingTx = ref(false);
 const page = ref(1);
 const hasMore = ref(true);
 
+// Chart Logic
+const timeRange = ref('1Y');
+const timeRanges = ['1M', '3M', '6M', '1Y', 'ALL'];
+
+const filteredHistory = computed(() => {
+  if (!asset.value?.history || asset.value.history.length === 0) return [];
+  if (timeRange.value === 'ALL') return asset.value.history;
+
+  const now = new Date();
+  let cutoff = new Date();
+  
+  switch (timeRange.value) {
+    case '1M': cutoff.setMonth(now.getMonth() - 1); break;
+    case '3M': cutoff.setMonth(now.getMonth() - 3); break;
+    case '6M': cutoff.setMonth(now.getMonth() - 6); break;
+    case '1Y': cutoff.setFullYear(now.getFullYear() - 1); break;
+  }
+  
+  const filtered = asset.value.history
+    .filter(h => new Date(h.date) >= cutoff)
+    .sort((a, b) => new Date(a.date) - new Date(b.date));
+    
+  return filtered;
+});
+
+const hasChartData = computed(() => filteredHistory.value.length > 0);
+
+const chartSeries = computed(() => [{
+  name: 'Price', // Changed from Value to Price for clarity
+  data: filteredHistory.value.map(h => ({ x: new Date(h.date).getTime(), y: h.price })) // Use Price instead of Value
+}]);
+
+const chartOptions = computed(() => ({
+  chart: { 
+      type: 'area', 
+      toolbar: { show: false }, 
+      sparkline: { enabled: false }, 
+      fontFamily: 'inherit',
+      animations: { enabled: false }
+  },
+  dataLabels: { enabled: false }, // Explicitly disable data labels
+  stroke: { curve: 'smooth', width: 2, colors: ['var(--color-accent)'] },
+  fill: { type: 'gradient', gradient: { shadeIntensity: 1, opacityFrom: 0.3, opacityTo: 0.05, stops: [0, 100] } },
+  tooltip: { 
+      x: { format: 'dd MMM yyyy' }, 
+      y: { formatter: (val) => formatCurrencyPrecise(val) }, // 2 decimals for price
+      theme: 'dark'
+  },
+  xaxis: { 
+      type: 'datetime', 
+      tooltip: { enabled: false },
+      labels: { 
+          show: true,
+          style: { fontSize: '10px', colors: '#64748b' }, 
+          datetimeFormatter: { year: 'yyyy', month: "MMM 'yy", day: 'dd MMM' },
+      },
+      axisBorder: { show: false },
+      axisTicks: { show: false }
+  },
+  yaxis: {
+      show: true,
+      labels: { 
+          show: true,
+          // Use formatted currency (2 decimals) for unit price
+          formatter: (val) => formatCurrencyPrecise(val), 
+          style: { fontSize: '10px', colors: '#64748b' }
+      }
+  },
+  grid: {
+      show: true,
+      borderColor: 'var(--color-border-subtle)',
+      strokeDashArray: 4,
+      padding: { top: 0, right: 10, bottom: 0, left: 10 }
+  },
+  colors: ['var(--color-accent)']
+}));
+
 const getCategoryName = (id) => {
   const c = categories.value.find(x => x.id === id);
   return c ? c.name : 'Uncategorized';
@@ -196,7 +264,9 @@ const loadCategories = async () => {
   try {
     const res = await api.get(`/portfolios/${props.portfolioId}`);
     categories.value = res.data.targetAllocation?.map(t => ({ id: t.id, name: t.name })) || [];
-  } catch (e) { console.error(e); }
+  } catch (e) {
+      console.error('Failed to load categories', e);
+  }
 };
 
 const loadData = async () => {
@@ -211,6 +281,9 @@ const loadData = async () => {
     const res = await api.get(`/portfolios/${props.portfolioId}/assets/${props.assetId}/details`);
     asset.value = res.data;
     loading.value = false;
+    // Load categories if not already loaded (or refresh them)
+    if (categories.value.length === 0) await loadCategories();
+    
     await loadTransactions();
   } catch (e) {
     console.error(e);
@@ -244,7 +317,6 @@ const handleScroll = (e) => {
 watch(() => props.isOpen, (val) => {
   if (val) {
     loadData();
-    loadCategories();
     showCategoryDropdown.value = false;
   }
 }, { immediate: true });
@@ -253,75 +325,23 @@ watch(() => props.assetId, (val) => {
   if (props.isOpen && val) loadData();
 });
 
-// Chart
-const chartSeries = computed(() => [{
-  name: 'Value',
-  data: asset.value?.history?.map(h => ({ x: new Date(h.date).getTime(), y: h.value })) || []
-}]);
-
 // Decision Logic
 const showDecisionForm = ref(false);
 const decisionType = ref('Buy');
-const decisionUnits = ref(0);
-const decisionRationale = ref('');
-const allocationMethod = ref('FIFO');
-const projectedTax = ref(null);
-const submitting = ref(false);
 
 const openDecisionForm = (type) => {
   decisionType.value = type;
   showDecisionForm.value = true;
-  decisionUnits.value = 0;
-  decisionRationale.value = '';
-  allocationMethod.value = 'FIFO';
-  projectedTax.value = null;
 };
 
-// Start watching for tax calculation needs
-watch([decisionUnits, allocationMethod], async () => {
-    if (decisionType.value === 'Sell' && decisionUnits.value > 0) {
-        // Debounce or call API to estimate tax
-        // This requires a new endpoint in ReportsController or DecisionsController to exposing CalculateTaxImpact
-        // For now, we'll leave it as a placeholder or implementing that endpoint next.
-    }
-});
-
-const submitDecision = async () => {
-  if (!props.portfolioId || !decisionUnits.value) return;
-  submitting.value = true;
-  try {
-    await api.post('/decisions', {
-      portfolioId: props.portfolioId,
-      title: `${decisionType.value} ${decisionUnits.value} ${asset.value.symbol}`,
-      rationale: decisionRationale.value || `${decisionType.value} decision for ${asset.value.symbol}`,
-      allocationMethod: decisionType.value === 'Sell' ? allocationMethod.value : null,
-      saveAsDraft: false
-    });
-    showDecisionForm.value = false;
-    // Refresh
+const onDecisionSuccess = () => {
     loadData();
-    emit('updated'); 
-  } catch (e) {
-    console.error(e);
-    alert('Failed to create decision');
-  } finally {
-    submitting.value = false;
-  }
+    emit('updated');
 };
-
-const chartOptions = computed(() => ({
-  chart: { type: 'area', toolbar: { show: false }, sparkline: { enabled: false }, fontFamily: 'inherit' },
-  dataLabels: { enabled: false },
-  stroke: { curve: 'smooth', width: 2, colors: ['var(--color-accent)'] },
-  xaxis: { type: 'datetime', labels: { show: false }, axisBorder: { show: false }, axisTicks: { show: false } },
-  yaxis: { show: false },
-  grid: { show: false },
-  fill: { type: 'gradient', gradient: { shadeIntensity: 1, opacityFrom: 0.3, opacityTo: 0.05, stops: [0, 100] } },
-  tooltip: { x: { format: 'dd MMM yyyy' }, y: { formatter: (val) => formatCurrency(val) } },
-  colors: ['var(--color-accent)']
-}));
 
 const toggleCategoryDropdown = () => {
+  // Always verify we have categories loaded when clicking
+  if (categories.value.length === 0) loadCategories();
   showCategoryDropdown.value = !showCategoryDropdown.value;
 };
 
@@ -335,427 +355,183 @@ const changeCategory = async (categoryId) => {
     await api.put(`/portfolios/${props.portfolioId}/assets/${props.assetId}/category`, { categoryId });
     asset.value.categoryId = categoryId;
     showCategoryDropdown.value = false;
+    emit('updated'); // Signal that asset details (category) changed
   } catch (e) {
     console.error('Failed to update category', e);
   } finally {
     categorySaving.value = false;
   }
 };
+
+// Global click listener for closing dropdown
+const closeDropdownOnClickOutside = (e) => {
+    if (showCategoryDropdown.value) {
+        // Check if click target is outside the dropdown logic
+        // We use @click.stop on the toggle button and dropdown itself, 
+        // so any click reaching here that isn't those elements should close it.
+        const el = document.querySelector('.category-selector');
+        const dropdown = document.querySelector('.category-dropdown');
+        if (el && !el.contains(e.target) && dropdown && !dropdown.contains(e.target)) {
+            showCategoryDropdown.value = false;
+        }
+    }
+};
+
+onMounted(() => {
+    document.addEventListener('click', closeDropdownOnClickOutside);
+});
+
+onUnmounted(() => {
+    document.removeEventListener('click', closeDropdownOnClickOutside);
+});
 </script>
 
 <style scoped>
-.asset-drawer {
-  height: 100%;
-}
-
-.is-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 200;
-}
-
-.drawer-backdrop {
-  position: absolute;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.3);
-}
-
+.asset-drawer { height: 100%; }
+.is-overlay { position: fixed; inset: 0; z-index: 200; }
+.drawer-backdrop { position: absolute; inset: 0; background: rgba(0, 0, 0, 0.3); backdrop-filter: blur(1px); transition: opacity 0.3s ease; }
 .drawer-content {
   height: 100%;
   background: var(--color-bg-secondary);
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  box-shadow: var(--shadow-2xl);
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
+.overlay-mode { position: absolute; right: 0; top: 0; bottom: 0; width: 420px; max-width: 95vw; }
 
-.overlay-mode {
-  position: absolute;
-  right: 0;
-  top: 0;
-  bottom: 0;
-  width: 600px;
-  max-width: 95vw;
-  box-shadow: var(--shadow-xl);
+.drawer-loading, .drawer-error {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; gap: var(--spacing-md); color: var(--color-text-muted);
 }
-
-.drawer-loading,
-.drawer-error {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-  gap: var(--spacing-md);
-  color: var(--color-text-muted);
-}
-
-.drawer-body {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  overflow: hidden;
-}
+.drawer-body { display: flex; flex-direction: column; height: 100%; overflow: hidden; }
 
 /* Header */
 .drawer-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  padding: var(--spacing-md) var(--spacing-lg);
-  border-bottom: 1px solid var(--color-border);
-}
-
-.asset-symbol {
-  font-size: var(--font-size-lg);
-  font-weight: 700;
-  color: var(--color-text-primary);
-}
-
-.asset-name {
-  font-size: var(--font-size-sm);
-  color: var(--color-text-muted);
-  margin-bottom: var(--spacing-xs);
-}
-
-.category-badge {
-  display: inline-block;
-  padding: 2px 8px;
-  background: var(--color-bg-elevated);
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-xs);
-  border-radius: var(--radius-full);
-}
-
-.category-badge.interactive {
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-
-.category-badge.interactive:hover {
-  background: var(--color-accent);
-  color: white;
-}
-
-.category-selector {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  cursor: pointer;
+  padding: 16px 20px 4px;
+  background: var(--color-bg-primary);
+  display: flex; justify-content: space-between; align-items: flex-start;
+  flex-shrink: 0;
+  overflow: visible; /* Allowing dropdown to overflow header */
+  z-index: 10; 
   position: relative;
 }
-
-.cat-chevron {
-  transition: transform 0.15s ease;
-  color: var(--color-text-muted);
-}
-
-.category-selector.open .cat-chevron {
-  transform: rotate(180deg);
-}
-
-.category-dropdown {
-  position: absolute;
-  top: calc(100% + 4px);
-  left: 0;
-  min-width: 200px;
-  background: var(--color-bg-primary, white);
-  border: 1px solid var(--color-border);
-  border-radius: 8px;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.12);
-  z-index: 50;
-  padding: 4px;
-  max-height: 200px;
-  overflow-y: auto;
-}
-
-.cat-option {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 8px 10px;
-  border-radius: 6px;
-  font-size: var(--font-size-sm);
-  cursor: pointer;
-  color: var(--color-text-primary);
-  transition: background 0.1s;
-}
-
-.cat-option:hover { background: var(--color-bg-elevated); }
-.cat-option.selected { font-weight: 600; color: var(--color-accent); }
-.cat-option.disabled { color: var(--color-text-muted); cursor: default; font-style: italic; }
-.cat-option.disabled:hover { background: transparent; }
-
-.cat-saving {
-  font-size: var(--font-size-xs);
-  color: var(--color-text-muted);
-  margin-left: 6px;
-  animation: pulse 1s infinite;
-}
-
-@keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.4; }
-}
-
+.header-main { display: flex; flex-direction: column; gap: 4px; }
+.asset-symbol { font-size: 20px; font-weight: 700; color: var(--color-text-primary); line-height: 1.1; }
+.asset-name { font-size: 13px; color: var(--color-text-secondary); line-height: 1.3; } 
 .btn-close {
-  background: transparent;
-  border: none;
-  color: var(--color-text-muted);
-  cursor: pointer;
-  padding: 4px;
-  border-radius: var(--radius-sm);
-  transition: all var(--transition-fast);
+  background: transparent; border: none; color: var(--color-text-muted); padding: 4px; margin: -4px;
+  cursor: pointer; border-radius: var(--radius-full); transition: all 0.2s;
 }
+.btn-close:hover { background: var(--color-bg-tertiary); color: var(--color-text-primary); }
 
-.btn-close:hover {
-  background: var(--color-bg-elevated);
-  color: var(--color-text-primary);
+/* Category Selector */
+.category-selector { 
+    display: inline-flex; align-items: center; gap: 4px; position: relative; cursor: pointer; 
+    background: transparent; border: none; padding: 0; /* Reset button styles */
 }
-
-/* Value Section */
-.value-section {
-  display: flex;
-  align-items: baseline;
-  gap: var(--spacing-md);
-  padding: var(--spacing-sm) var(--spacing-lg);
+.category-badge { 
+    font-size: 11px; padding: 2px 8px; background: var(--color-bg-elevated); 
+    color: var(--color-text-secondary); border-radius: 99px; transition: all 0.2s; font-weight: 500; 
 }
+.category-selector:hover .category-badge { background: var(--color-bg-tertiary); color: var(--color-text-primary); }
+.header-badges { display: flex; align-items: center; margin-top: 2px; }
 
-.current-value {
-  font-size: var(--font-size-2xl);
-  font-weight: 700;
-  color: var(--color-text-primary);
+/* Dropdown */
+.category-dropdown {
+  position: absolute; top: 100%; left: 0; margin-top: 4px; min-width: 220px;
+  background: var(--color-bg-primary); border: 1px solid var(--color-border); border-radius: 8px;
+  box-shadow: var(--shadow-xl); z-index: 100; padding: 4px; max-height: 200px; overflow-y: auto;
 }
+.cat-option { padding: 8px 12px; font-size: 13px; border-radius: 4px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; color: var(--color-text-primary); }
+.cat-option:hover { background: var(--color-bg-tertiary); }
+.cat-option.selected { color: var(--color-accent); font-weight: 600; background: var(--color-bg-accent-subtle); }
+.cat-option.disabled { font-style: italic; color: var(--color-text-muted); cursor: default; }
 
-.return-badge {
-  font-size: var(--font-size-sm);
-  font-weight: 600;
-  padding: 4px 10px;
-  border-radius: var(--radius-full);
-}
-
-.return-badge.positive {
-  background: rgba(5, 150, 105, 0.1);
-  color: var(--color-success);
-}
-
-.return-badge.negative {
-  background: rgba(220, 38, 38, 0.1);
-  color: var(--color-danger);
-}
-
-/* Chart */
-.chart-section {
-  padding: 0 var(--spacing-lg);
-}
-
-/* Actions */
-.actions-section {
-  padding: 0 var(--spacing-lg) var(--spacing-md);
-}
-
-.action-buttons {
-  display: flex;
-  gap: var(--spacing-md);
-}
-
-.flex-1 { flex: 1; }
-
-.btn {
-  padding: 8px 16px;
-  border-radius: var(--radius-md);
-  font-weight: 500;
-  cursor: pointer;
-  border: none;
-  font-size: var(--font-size-sm);
-  transition: all 0.2s;
-}
-
-.btn-success { background: var(--color-success); color: white; }
-.btn-success:hover { background: #047857; }
-
-.btn-danger { background: var(--color-danger); color: white; }
-.btn-danger:hover { background: #b91c1c; }
-
-.decision-form {
-  padding: var(--spacing-md);
-  background: var(--color-bg-elevated);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-}
-
-.form-title {
-  margin: 0 0 var(--spacing-md);
-  font-size: var(--font-size-sm);
-  text-transform: uppercase;
-  color: var(--color-text-muted);
-}
-
-.form-group {
-  margin-bottom: var(--spacing-sm);
-}
-
-.form-group label {
-  display: block;
-  font-size: var(--font-size-xs);
-  color: var(--color-text-secondary);
-  margin-bottom: 4px;
-}
-
-.form-input, .form-select {
-  width: 100%;
-  padding: 8px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
+/* Value & Actions Row */
+.value-actions-row {
+  display: flex; justify-content: space-between; align-items: flex-end;
+  padding: 4px 20px 12px;
   background: var(--color-bg-primary);
-  color: var(--color-text-primary);
+  border-bottom: 1px solid var(--color-border-subtle);
+  flex-shrink: 0;
+  z-index: 1; /* Lower than header */
 }
+.value-group { display: flex; align-items: baseline; gap: 8px; }
+.current-value { font-size: 24px; font-weight: 700; color: var(--color-text-primary); letter-spacing: -0.02em; }
+.return-badge { font-size: 12px; font-weight: 600; padding: 2px 6px; border-radius: 4px; }
+.return-badge.positive { color: var(--color-success); background: rgba(var(--color-success-rgb), 0.1); }
+.return-badge.negative { color: var(--color-danger); background: rgba(var(--color-danger-rgb), 0.1); }
 
-.form-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: var(--spacing-sm);
-  margin-top: var(--spacing-md);
+.actions-group { display: flex; gap: 8px; }
+.btn-sm { padding: 6px 12px; font-size: 12px; border-radius: 6px; font-weight: 600; cursor: pointer; border: none; transition: transform 0.1s; }
+.btn-sm:hover { transform: translateY(-1px); }
+.btn-success { background: var(--color-success); color: white; }
+.btn-danger { background: var(--color-danger); color: white; }
+
+/* Chart Section */
+.chart-section {
+  padding: 12px 20px 4px;
+  background: var(--color-bg-primary);
+  border-bottom: 1px solid var(--color-border-subtle);
+  flex-shrink: 0;
 }
-
-.tax-hint {
-  font-size: var(--font-size-xs);
-  color: var(--color-info);
-  margin-top: 4px;
+.chart-controls { display: flex; justify-content: flex-end; gap: 4px; margin-bottom: 4px; }
+.range-btn {
+  background: transparent; border: none; font-size: 10px; font-weight: 600; color: var(--color-text-muted);
+  cursor: pointer; padding: 2px 6px; border-radius: 4px; transition: all 0.2s;
 }
+.range-btn:hover { color: var(--color-text-primary); background: var(--color-bg-elevated); }
+.range-btn.active { color: var(--color-accent); background: var(--color-bg-accent-subtle); }
+.chart-empty { font-size: 12px; color: var(--color-text-muted); text-align: center; padding: 20px; }
 
-/* Stats */
-.stats-section {
-  padding: var(--spacing-md) var(--spacing-lg);
-}
-
-.section-title {
-  font-size: var(--font-size-xs);
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--color-text-muted);
-  margin-bottom: var(--spacing-md);
-}
-
-.stats-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: var(--spacing-sm);
-}
-
-.stat-item {
-  display: flex;
-  justify-content: space-between;
-  padding: var(--spacing-sm) var(--spacing-md);
-  background: var(--color-bg-elevated);
-  border-radius: var(--radius-md);
-}
-
-.stat-label {
-  font-size: var(--font-size-sm);
-  color: var(--color-text-muted);
-}
-
-.stat-value {
-  font-size: var(--font-size-sm);
-  font-weight: 600;
-  color: var(--color-text-primary);
-}
-
+/* Stats (Compact) */
+.stats-section { padding: 12px 20px; background: var(--color-bg-secondary); border-bottom: 1px solid var(--color-border-subtle); flex-shrink: 0; }
+.stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+.stat-item { display: flex; flex-direction: column; gap: 2px; }
+.stat-label { font-size: 10px; text-transform: uppercase; color: var(--color-text-muted); font-weight: 600; }
+.stat-value { font-size: 13px; font-weight: 600; color: var(--color-text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .text-success { color: var(--color-success); }
 .text-danger { color: var(--color-danger); }
 
 /* Transactions */
 .transactions-section {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  padding: 0 var(--spacing-lg) var(--spacing-lg);
-  overflow: hidden;
+  flex: 1; min-height: 0;
+  display: flex; flex-direction: column;
+  background: var(--color-bg-secondary);
+  padding: 12px 20px 0;
 }
+.section-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--color-text-muted); margin-bottom: 8px; flex-shrink: 0; }
 
-.transactions-list {
-  flex: 1;
-  overflow: hidden;
-}
-
-.transactions-loading,
-.transactions-empty {
-  text-align: center;
-  padding: var(--spacing-xl);
-  color: var(--color-text-muted);
-  font-size: var(--font-size-sm);
+.transactions-list-container {
+  flex: 1; min-height: 0;
+  position: relative;
+  display: flex; flex-direction: column;
 }
 
 .transaction-items {
-  height: 100%;
+  flex: 1;
   overflow-y: auto;
-  /* Visual cue for more records - mask fade at bottom */
-  mask-image: linear-gradient(to bottom, black 85%, transparent 100%);
-  -webkit-mask-image: linear-gradient(to bottom, black 85%, transparent 100%);
+  padding-bottom: 20px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border) transparent;
 }
+.transaction-items::-webkit-scrollbar { width: 4px; }
+.transaction-items::-webkit-scrollbar-thumb { background-color: var(--color-border); border-radius: 4px; }
 
 .transaction-item {
-  display: grid;
-  grid-template-columns: 1fr auto auto auto;
-  gap: var(--spacing-md);
-  padding: var(--spacing-sm) 0;
-  border-bottom: 1px solid var(--color-border-subtle);
-  font-size: var(--font-size-sm);
-  align-items: center;
+  display: grid; grid-template-columns: 80px auto 1fr auto; align-items: center; gap: 8px;
+  padding: 8px 0; border-bottom: 1px solid var(--color-border-subtle); font-size: 12px;
 }
+.tx-date { color: var(--color-text-secondary); }
+.tx-badge { display: inline-block; padding: 1px 6px; border-radius: 3px; font-size: 10px; font-weight: 700; text-transform: uppercase; }
+.tx-badge.buy { color: var(--color-success); background: rgba(var(--color-success-rgb), 0.1); }
+.tx-badge.sell { color: var(--color-danger); background: rgba(var(--color-danger-rgb), 0.1); }
+.tx-badge.dividend { color: var(--color-info); background: rgba(var(--color-info-rgb), 0.1); }
+.tx-units { text-align: right; color: var(--color-text-secondary); }
+.tx-amount { text-align: right; font-weight: 600; color: var(--color-text-primary); min-width: 60px; }
 
-.tx-date {
-  color: var(--color-text-secondary);
-}
-
-.tx-badge {
-  display: inline-block;
-  padding: 2px 6px;
-  border-radius: var(--radius-sm);
-  font-size: var(--font-size-xs);
-  font-weight: 500;
-  text-transform: uppercase;
-}
-
-.tx-badge.buy { background: rgba(5, 150, 105, 0.1); color: var(--color-success); }
-.tx-badge.sell { background: rgba(220, 38, 38, 0.1); color: var(--color-danger); }
-.tx-badge.dividend { background: rgba(2, 132, 199, 0.1); color: var(--color-info); }
-
-.tx-units {
-  text-align: right;
-  color: var(--color-text-secondary);
-}
-
-.tx-amount {
-  text-align: right;
-  font-weight: 500;
-  color: var(--color-text-primary);
-  min-width: 80px;
-}
-
-/* Spinner */
-.spinner {
-  width: 24px;
-  height: 24px;
-  border: 2px solid var(--color-border);
-  border-top-color: var(--color-accent);
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-}
-
-.spinner-sm {
-  width: 16px;
-  height: 16px;
-  border: 2px solid var(--color-border);
-  border-top-color: var(--color-accent);
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-  display: inline-block;
-  margin-right: var(--spacing-sm);
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
+/* Loading/Empty */
+.transactions-loading, .transactions-empty { text-align: center; padding: 20px; font-size: 12px; color: var(--color-text-muted); }
+.spinner-sm { display: inline-block; width: 12px; height: 12px; border: 2px solid var(--color-border); border-top-color: var(--color-accent); border-radius: 50%; animation: spin 0.8s linear infinite; margin-right: 6px; }
 </style>

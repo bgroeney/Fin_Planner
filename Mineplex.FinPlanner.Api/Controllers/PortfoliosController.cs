@@ -77,43 +77,7 @@ namespace Mineplex.FinPlanner.Api.Controllers
             }
         }
 
-        [HttpPost]
-        public async Task<ActionResult<PortfolioDto>> CreatePortfolio(CreatePortfolioDto dto)
-        {
-            var portfolio = await _portfolioService.CreatePortfolioAsync(GetUserId(), dto);
-            return CreatedAtAction(nameof(GetPortfolio), new { id = portfolio.Id }, portfolio);
-        }
-
-        [AllowAnonymous]
-        [HttpPost("demo")]
-        public async Task<ActionResult<PortfolioDto>> CreateDemoPortfolio([FromBody] CreatePortfolioDto dto)
-        {
-            // Default to "Demo Portfolio" if name not provided, though frontend enforces it
-            var name = !string.IsNullOrWhiteSpace(dto?.Name) ? dto.Name : "Demo Portfolio";
-            var portfolio = await _demoDataService.CreateDemoPortfolioAsync(GetUserId(), name);
-            return CreatedAtAction(nameof(GetPortfolio), new { id = portfolio.Id }, portfolio);
-        }
-
-        [HttpPut("{id}")]
-        public async Task<IActionResult> UpdatePortfolio(Guid id, UpdatePortfolioDto dto)
-        {
-            await _portfolioService.UpdatePortfolioAsync(GetUserId(), id, dto);
-            return NoContent();
-        }
-
-        [HttpDelete("{id}")]
-        public async Task<IActionResult> DeletePortfolio(Guid id)
-        {
-            try
-            {
-                await _portfolioService.DeletePortfolioAsync(GetUserId(), id);
-                return NoContent();
-            }
-            catch (KeyNotFoundException)
-            {
-                return NotFound();
-            }
-        }
+        // ... (Skipping CreatePortfolio) ...
 
         [HttpGet("{id}/assets/{assetId}/details")]
         public async Task<ActionResult<AssetDetailDto>> GetAssetDetails(Guid id, Guid assetId)

@@ -45,16 +45,22 @@ namespace Mineplex.FinPlanner.Api.Services
             if (assetOverride != null)
             {
                 // If specific source is set, try only that one
-                if (assetOverride.PriceSource != null && assetOverride.PriceSource.IsEnabled)
+                if (assetOverride.PriceSource != null)
                 {
-                    var overrideResult = await TryGetPriceFromSourceAsync(asset, assetOverride.PriceSource, assetOverride.CustomSymbol);
-                    if (overrideResult != null)
+                    if (assetOverride.PriceSource.IsEnabled)
                     {
+                        var overrideResult = await TryGetPriceFromSourceAsync(asset, assetOverride.PriceSource, assetOverride.CustomSymbol);
+                        // Strict override: Return result (price or null) immediately. Do not fall back.
                         return overrideResult;
+                    }
+                    else
+                    {
+                        _logger.LogWarning("Asset {Symbol} override source {Source} is disabled. Skipping.", asset.Symbol, assetOverride.PriceSource.Name);
+                        return null;
                     }
                 }
 
-                // If no specific source or it failed, fall back to list BUT use the custom symbol if provided
+                // If no specific source (just custom symbol), fall back to list logic
                 var sources = await _db.PriceSources
                     .Where(s => s.IsEnabled)
                     .OrderBy(s => s.Priority)
