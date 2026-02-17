@@ -43,15 +43,29 @@ namespace Mineplex.FinPlanner.Api.Services
             _context.PerformanceSnapshots.RemoveRange(existing);
 
             // 3. Replay history day by day
-            // Optimization: In a real system we wouldn't fetch price for EVERY day in a loop.
-            // We would fetch all historical prices in bulk.
+            // Optimization: Fetch all prices in bulk to avoid N+1 queries.
+            var assetIds = transactions.Select(t => t.AssetId).Distinct().ToList();
 
-            // For now, simpler implementation: 
-            // We iterate through every transaction to build the "Units Held" state.
-            // Then for each day, we value those units.
+            // Fetch historical prices for relevant assets
+            var historicalPrices = await _context.HistoricalPrices
+                .Where(hp => assetIds.Contains(hp.AssetId) && hp.Date <= endDate)
+                .OrderBy(hp => hp.Date)
+                .ToListAsync();
 
+            var historicalPricesLookup = historicalPrices
+                .GroupBy(hp => hp.AssetId)
+                .ToDictionary(g => g.Key, g => g.ToList());
+
+            // Fetch current prices for fallback
+            var currentPricesFallback = await _context.CurrentPrices
+                .Where(cp => assetIds.Contains(cp.AssetId))
+                .ToDictionaryAsync(cp => cp.AssetId, cp => cp.Price);
+
+            // Caches for efficient processing
             var portfolioHoldings = new Dictionary<Guid, decimal>(); // AssetId -> Units
             var transactionQueue = new Queue<Transaction>(transactions);
+            var runningPrices = new Dictionary<Guid, decimal>(); // AssetId -> Last Known Price
+            var priceCursors = assetIds.ToDictionary(id => id, id => 0); // AssetId -> Index in historicalPrices list
 
             for (var date = startDate; date <= endDate; date = date.AddDays(1))
             {
@@ -71,36 +85,44 @@ namespace Mineplex.FinPlanner.Api.Services
                     }
                 }
 
-                // If it's a weekend, strictly speaking markets are closed, but we carry forward Friday's value usually.
-                // For simplicity, we just look up the price.
+                // Update running prices based on historical data up to this day
+                foreach (var assetId in assetIds)
+                {
+                    if (historicalPricesLookup.TryGetValue(assetId, out var prices))
+                    {
+                        int cursor = priceCursors[assetId];
+                        // Advance cursor to find the latest price on or before 'date'
+                        while (cursor < prices.Count && prices[cursor].Date <= date)
+                        {
+                            runningPrices[assetId] = prices[cursor].ClosePrice;
+                            cursor++;
+                        }
+                        priceCursors[assetId] = cursor;
+                    }
+                }
 
                 decimal totalValue = 0;
                 var allocation = new Dictionary<string, decimal>();
 
-                // We need prices for this date.
-                // NOTE: This could be slow if doing N+1 queries. 
-                // In production, fetch all HistoryPrices for these AssetIds range [Start, End].
                 foreach (var kvp in portfolioHoldings.Where(x => x.Value > 0))
                 {
                     var assetId = kvp.Key;
                     var units = kvp.Value;
+                    decimal price = 0;
 
-                    // Try get historical price
-                    var price = await _context.HistoricalPrices
-                        .Where(hp => hp.AssetId == assetId && hp.Date <= date)
-                        .OrderByDescending(hp => hp.Date)
-                        .Select(hp => hp.ClosePrice)
-                        .FirstOrDefaultAsync();
+                    // Use the latest known historical price
+                    if (runningPrices.TryGetValue(assetId, out var p))
+                    {
+                        price = p;
+                    }
 
-                    // Fallback to current price if recent
+                    // Fallback to current price if no recent history is available
                     if (price == 0 && date >= DateTime.UtcNow.AddDays(-7))
                     {
-                        // This is a rough estimation fallback
-                        var current = await _context.Assets.Include(a => a.CurrentPrice)
-                           .Where(a => a.Id == assetId)
-                           .Select(a => a.CurrentPrice != null ? a.CurrentPrice.Price : 0)
-                           .FirstOrDefaultAsync();
-                        price = current;
+                        if (currentPricesFallback.TryGetValue(assetId, out var cp))
+                        {
+                            price = cp;
+                        }
                     }
 
                     totalValue += units * price;
