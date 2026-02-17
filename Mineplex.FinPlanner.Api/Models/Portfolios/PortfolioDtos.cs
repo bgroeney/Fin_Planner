@@ -26,6 +26,7 @@ namespace Mineplex.FinPlanner.Api.Models.Portfolios
         public decimal TotalValue { get; set; }
         public Guid? BenchmarkAssetId { get; set; }
         public string BenchmarkSymbol { get; set; } = string.Empty;
+        public bool IsShared { get; set; }
     }
 
     public class UpdatePortfolioDto

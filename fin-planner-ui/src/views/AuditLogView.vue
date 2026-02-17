@@ -153,8 +153,10 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue';
+import { ref, reactive, onMounted, computed, watch } from 'vue';
+import { usePortfolioStore } from '../stores/portfolio';
 import api from '../services/api';
+import { formatDate as sharedFormatDate } from '../utils/formatters';
 
 const loading = ref(true);
 const logs = ref([]);
@@ -163,18 +165,18 @@ const pageSize = 50;
 const showDetailModal = ref(false);
 const selectedLog = ref(null);
 
+const portfolioStore = usePortfolioStore();
+const currentPortfolioId = computed(() => portfolioStore.currentPortfolioId);
+
 const filters = reactive({
   entityType: '',
   action: ''
 });
 
+// Use shared formatDate for the short date format
 const formatDate = (dateStr) => {
   if (!dateStr) return '';
-  return new Date(dateStr).toLocaleDateString('en-AU', { 
-    day: '2-digit', 
-    month: 'short', 
-    year: 'numeric' 
-  });
+  return sharedFormatDate(dateStr, 'short');
 };
 
 const formatTime = (dateStr) => {
@@ -209,9 +211,15 @@ const getActionClass = (action) => {
 };
 
 const loadLogs = async () => {
+  if (!currentPortfolioId.value) {
+    logs.value = [];
+    loading.value = false;
+    return;
+  }
   loading.value = true;
   try {
     const params = new URLSearchParams();
+    params.append('portfolioId', currentPortfolioId.value);
     params.append('page', page.value);
     params.append('pageSize', pageSize);
     if (filters.entityType) params.append('entityType', filters.entityType);
@@ -244,7 +252,19 @@ const resetFilters = () => {
   loadLogs();
 };
 
-onMounted(loadLogs);
+// Watch for portfolio changes
+watch(currentPortfolioId, () => {
+  page.value = 1;
+  loadLogs();
+});
+
+onMounted(() => {
+  if (currentPortfolioId.value) {
+    loadLogs();
+  } else {
+    loading.value = false;
+  }
+});
 </script>
 
 <style scoped>

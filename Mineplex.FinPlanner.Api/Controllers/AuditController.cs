@@ -39,12 +39,16 @@ public class AuditController : ControllerBase
     /// </summary>
     [HttpGet]
     public async Task<ActionResult<IEnumerable<AuditLogDto>>> GetAuditLogs(
+        [FromQuery] Guid? portfolioId = null,
         [FromQuery] string? entityType = null,
         [FromQuery] string? action = null,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 50)
     {
         var query = _context.AuditLogs.AsQueryable();
+
+        if (portfolioId.HasValue)
+            query = query.Where(a => a.PortfolioId == portfolioId.Value);
 
         if (!string.IsNullOrEmpty(entityType))
             query = query.Where(a => a.EntityType == entityType);

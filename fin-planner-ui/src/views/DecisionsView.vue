@@ -7,35 +7,18 @@
         <p class="text-muted">Track, approve, and implement portfolio decisions</p>
       </div>
       
-      <div class="flex gap-md">
-        <!-- Portfolio Selector -->
-        <div class="portfolio-select-wrapper">
-          <select 
-            v-model="selectedPortfolioId" 
-            @change="handlePortfolioChange"
-            class="portfolio-select"
-          >
-            <option :value="null" disabled>Select Portfolio</option>
-            <option v-for="p in portfolios" :key="p.id" :value="p.id">
-              {{ p.name }}
-            </option>
-          </select>
-          <svg class="select-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
-        </div>
-
-        <button @click="openNewDecisionModal" class="btn btn-primary" :disabled="!selectedPortfolioId">
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
-          New Decision
-        </button>
-      </div>
+      <button @click="openNewDecisionModal" class="btn btn-primary" :disabled="!currentPortfolioId">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+        New Decision
+      </button>
     </div>
 
-    <div v-if="!selectedPortfolioId" class="empty-state-large card flex-center flex-col p-xl">
+    <div v-if="!currentPortfolioId" class="empty-state-large card flex-center flex-col p-xl">
       <div class="empty-icon-bg mb-md">
         <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
       </div>
-      <h3>Select a Portfolio</h3>
-      <p>Please select a portfolio to view and manage decisions.</p>
+      <h3>No Portfolio Selected</h3>
+      <p>Please select a portfolio from the header to view and manage decisions.</p>
     </div>
 
     <div v-else>
@@ -259,12 +242,14 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
+import { usePortfolioStore } from '../stores/portfolio';
 import api from '../services/api';
 import MoneyBoxLoader from '../components/MoneyBoxLoader.vue';
+import { formatDate } from '../utils/formatters';
 
-const portfolios = ref([]);
-const selectedPortfolioId = ref(null);
+const portfolioStore = usePortfolioStore();
+
 const decisions = ref([]);
 const loading = ref(false);
 const generatingAI = ref(false);
@@ -272,11 +257,13 @@ const backfilling = ref(false);
 const activeTab = ref('All');
 const decisionHistory = ref([]);
 const loadingHistory = ref(false);
-const showHistoryView = ref(true); // Default expanded for timeline view at bottom
+const showHistoryView = ref(true);
+
+const currentPortfolioId = computed(() => portfolioStore.currentPortfolioId);
 
 // Modal State
 const showModal = ref(false);
-const modalmode = ref('view'); // view, edit, create
+const modalmode = ref('view');
 const currentDecision = ref(null);
 const form = ref({
     title: '',
@@ -299,32 +286,22 @@ const filteredDecisions = computed(() => {
     return decisions.value.filter(d => d.status === activeTab.value);
 });
 
-onMounted(async () => {
-    await fetchPortfolios();
+// Watch for portfolio changes
+watch(currentPortfolioId, () => {
+    fetchDecisions();
 });
 
-const fetchPortfolios = async () => {
-    try {
-        const res = await api.get('/portfolios');
-        portfolios.value = res.data;
-        if (portfolios.value.length > 0) {
-            selectedPortfolioId.value = portfolios.value[0].id;
-            fetchDecisions();
-        }
-    } catch (e) {
-        console.error("Failed to fetch portfolios", e);
+onMounted(() => {
+    if (currentPortfolioId.value) {
+        fetchDecisions();
     }
-}
-
-const handlePortfolioChange = () => {
-    fetchDecisions();
-};
+});
 
 const fetchDecisions = async () => {
-    if (!selectedPortfolioId.value) return;
+    if (!currentPortfolioId.value) return;
     loading.value = true;
     try {
-        const res = await api.get(`/decisions/portfolio/${selectedPortfolioId.value}`);
+        const res = await api.get(`/decisions/portfolio/${currentPortfolioId.value}`);
         decisions.value = res.data;
     } catch (e) {
         console.error(e);
@@ -334,12 +311,12 @@ const fetchDecisions = async () => {
 };
 
 const generateAIRecommendations = async () => {
-    if (!selectedPortfolioId.value) return;
+    if (!currentPortfolioId.value) return;
     generatingAI.value = true;
     try {
-        await api.post(`/decisions/ai-recommendations/${selectedPortfolioId.value}`);
+        await api.post(`/decisions/ai-recommendations/${currentPortfolioId.value}`);
         await fetchDecisions();
-        activeTab.value = 'Pending'; // Switch to show the new recommendation
+        activeTab.value = 'Pending';
     } catch (e) {
         alert("Failed to generate recommendations: " + (e.response?.data || e.message));
     } finally {
@@ -348,12 +325,12 @@ const generateAIRecommendations = async () => {
 };
 
 const backfillDecisions = async () => {
-    if (!selectedPortfolioId.value) return;
+    if (!currentPortfolioId.value) return;
     if(!confirm("Generate retroactive decisions for existing history? This will create 'Implemented' decisions for past Buy/Sell transactions.")) return;
     backfilling.value = true;
     try {
-        const res = await api.post(`/decisions/backfill/${selectedPortfolioId.value}`);
-        alert(res.data.message); // Should return "Backfilled X decisions"
+        const res = await api.post(`/decisions/backfill/${currentPortfolioId.value}`);
+        alert(res.data.message);
         fetchDecisions();
     } catch (e) {
         console.error(e);
@@ -400,7 +377,7 @@ const editDecision = (decision) => {
 const saveDecision = async (asDraft) => {
     try {
         const payload = {
-            portfolioId: selectedPortfolioId.value,
+            portfolioId: currentPortfolioId.value,
             title: form.value.title,
             rationale: form.value.rationale,
             saveAsDraft: asDraft
@@ -473,7 +450,7 @@ const closeModal = () => {
 };
 
 // Helpers
-const formatDate = (d) => new Date(d).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' });
+// formatDate imported from ../utils/formatters
 const truncate = (text, length) => text && text.length > length ? text.substring(0, length) + '...' : text;
 
 const getStatusClass = (status) => {

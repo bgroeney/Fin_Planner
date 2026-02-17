@@ -8,14 +8,7 @@
       </div>
       
       <div class="controls">
-        <div class="select-wrapper">
-          <select v-model="selectedPortfolioId" class="portfolio-select" v-if="portfolios.length > 0">
-            <option v-for="p in portfolios" :key="p.id" :value="p.id">
-              {{ p.name }}
-            </option>
-          </select>
-        </div>
-        <div class="export-dropdown" v-if="selectedPortfolioId">
+        <div class="export-dropdown" v-if="currentPortfolioId">
           <button class="btn btn-secondary" @click="showExportMenu = !showExportMenu">
             Export Data
             <span class="dropdown-arrow">▾</span>
@@ -28,7 +21,7 @@
       </div>
     </div>
 
-    <div v-if="selectedPortfolioId">
+    <div v-if="currentPortfolioId">
       <!-- Tabs Navigation -->
       <div class="tabs mb-lg">
         <button 
@@ -50,7 +43,7 @@
             <h2>Portfolio Performance</h2>
             <p class="text-muted">Visualizing portfolio value and growth over time versus invested capital.</p>
           </div>
-          <PerformanceChart :portfolioId="selectedPortfolioId" />
+          <PerformanceChart :portfolioId="currentPortfolioId" />
         </div>
 
         <!-- Tax Tab -->
@@ -59,7 +52,7 @@
             <h2>Tax Impact</h2>
             <p class="text-muted">Estimated tax liabilities, realized gains, and franking credits for the financial year.</p>
           </div>
-          <TaxSummary :portfolioId="selectedPortfolioId" />
+          <TaxSummary :portfolioId="currentPortfolioId" />
         </div>
 
         <!-- Transactions Tab -->
@@ -68,7 +61,7 @@
             <h2>Transaction Ledger</h2>
             <p class="text-muted">Complete history of all buy, sell, and income events.</p>
           </div>
-          <TransactionLedger :portfolioId="selectedPortfolioId" />
+          <TransactionLedger :portfolioId="currentPortfolioId" />
         </div>
       </div>
     </div>
@@ -82,17 +75,18 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, computed, onMounted } from 'vue';
+import { usePortfolioStore } from '../stores/portfolio';
 import api from '../services/api';
 import TaxSummary from '../components/reports/TaxSummary.vue';
 import PerformanceChart from '../components/reports/PerformanceChart.vue';
 import TransactionLedger from '../components/reports/TransactionLedger.vue';
 
-const portfolios = ref([]);
-const selectedPortfolioId = ref(null);
-const loading = ref(true);
+const portfolioStore = usePortfolioStore();
 const currentTab = ref('performance');
 const showExportMenu = ref(false);
+
+const currentPortfolioId = computed(() => portfolioStore.currentPortfolioId);
 
 const tabs = [
   { id: 'performance', label: 'Performance' },
@@ -100,29 +94,14 @@ const tabs = [
   { id: 'transactions', label: 'Ledger' }
 ];
 
-const loadPortfolios = async () => {
-  try {
-    const res = await api.get('/portfolios');
-    portfolios.value = res.data;
-    if (portfolios.value.length > 0) {
-      selectedPortfolioId.value = portfolios.value[0].id;
-    }
-  } catch (e) {
-    console.error('Failed to load portfolios', e);
-  } finally {
-    loading.value = false;
-  }
-};
-
 const exportData = async (format) => {
   showExportMenu.value = false;
   try {
-    const response = await api.get(`/reports/export/${selectedPortfolioId.value}?format=${format}`, {
+    const response = await api.get(`/reports/export/${currentPortfolioId.value}?format=${format}`, {
       responseType: format === 'csv' ? 'blob' : 'json'
     });
     
     if (format === 'csv') {
-      // Download CSV file
       const blob = new Blob([response.data], { type: 'text/csv' });
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -133,7 +112,6 @@ const exportData = async (format) => {
       window.URL.revokeObjectURL(url);
       a.remove();
     } else {
-      // Download JSON file
       const blob = new Blob([JSON.stringify(response.data, null, 2)], { type: 'application/json' });
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -149,8 +127,6 @@ const exportData = async (format) => {
     alert('Failed to export data. Please try again.');
   }
 };
-
-onMounted(loadPortfolios);
 </script>
 
 <style scoped>

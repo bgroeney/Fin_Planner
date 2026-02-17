@@ -38,6 +38,7 @@ builder.Services.AddCors(options =>
 // Register Services
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IPortfolioService, PortfolioService>();
+builder.Services.AddScoped<IPortfolioSharingService, PortfolioSharingService>();
 builder.Services.AddScoped<IDemoDataService, DemoDataService>();
 builder.Services.AddScoped<INetwealthImportService, NetwealthImportService>();
 builder.Services.AddScoped<Mineplex.FinPlanner.Api.Services.Import.INetwealthCsvParser, Mineplex.FinPlanner.Api.Services.Import.NetwealthCsvParser>();
@@ -54,11 +55,21 @@ builder.Services.AddScoped<ITaxDistributionService, TaxDistributionService>();
 builder.Services.AddScoped<IRebalancingService, RebalancingService>();
 builder.Services.AddHttpClient();
 
+// Register internal services
+builder.Services.AddHttpClient<ISharesightService, SharesightService>()
+    .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+    {
+        UseCookies = true,
+        CookieContainer = new System.Net.CookieContainer(),
+        AllowAutoRedirect = true // Important for login 302s
+    });
+
 // Register Price Providers
 builder.Services.AddScoped<IPriceSourceProvider, YahooFinanceProvider>();
 builder.Services.AddScoped<IPriceSourceProvider, AlphaVantageProvider>();
 builder.Services.AddScoped<IPriceSourceProvider, PolygonProvider>();
 builder.Services.AddScoped<IPriceSourceProvider, MorningstarAuProvider>();
+builder.Services.AddScoped<IPriceSourceProvider, SharesightAuProvider>();
 builder.Services.AddScoped<IPriceSourceProvider, ImportedPriceProvider>();
 
 // Register Price System Manager

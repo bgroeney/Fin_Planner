@@ -13,7 +13,15 @@ namespace Mineplex.FinPlanner.Api.Models
         public Guid ChangedBy { get; set; }
         public DateTime ChangedAt { get; set; } = DateTime.UtcNow;
 
+        // Point-in-time snapshots
+        public string? InputsSnapshotJson { get; set; }
+        public string? SpreadsheetSnapshotJson { get; set; }
+        public Guid? SimulationSnapshotId { get; set; }
+
         [JsonIgnore]
         public PropertyDeal? Deal { get; set; }
+
+        [JsonIgnore]
+        public DealSimulationResult? SimulationSnapshot { get; set; }
     }
 }
