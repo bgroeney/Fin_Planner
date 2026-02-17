@@ -157,6 +157,7 @@ namespace Mineplex.FinPlanner.Api.Controllers
             // Get all holdings with current values
             var holdings = await _context.Holdings
                 .Include(h => h.Asset)
+                    .ThenInclude(a => a.CurrentPrice)
                 .Include(h => h.Account)
                 .Include(h => h.Category)
                 .Where(h => h.Account.PortfolioId == portfolioId)
@@ -168,7 +169,7 @@ namespace Mineplex.FinPlanner.Api.Controllers
                     Category = h.Category != null ? h.Category.Name : "Uncategorized",
                     h.Units,
                     h.AvgCost,
-                    h.CurrentValue
+                    CurrentValue = h.Units * (h.Asset.CurrentPrice != null ? h.Asset.CurrentPrice.Price : 0)
                 })
                 .ToListAsync();
 

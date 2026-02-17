@@ -273,6 +273,7 @@
 import { ref, onMounted } from 'vue';
 import { useRoute } from 'vue-router';
 import api from '../../services/api';
+import { formatCurrency, formatDate } from '../../utils/formatters';
 
 const route = useRoute();
 const company = ref(null);
@@ -383,14 +384,7 @@ const declareDividend = async () => {
     }
 };
 
-const formatDate = (dateString) => {
-  if (!dateString) return 'N/A';
-  return new Date(dateString).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' });
-};
 
-const formatCurrency = (val) => {
-  return new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD', maximumFractionDigits: 0 }).format(val || 0);
-};
 
 onMounted(loadData);
 </script>

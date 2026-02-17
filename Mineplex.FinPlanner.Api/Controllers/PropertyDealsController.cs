@@ -29,13 +29,18 @@ namespace Mineplex.FinPlanner.Api.Controllers
         #region Deals CRUD
 
         /// <summary>
-        /// Get all property deals for the current user
+        /// Get all property deals for the current user, optionally filtered by portfolio
         /// </summary>
         [HttpGet]
-        public async Task<ActionResult<List<PropertyDealDto>>> GetDeals([FromQuery] string? status = null)
+        public async Task<ActionResult<List<PropertyDealDto>>> GetDeals([FromQuery] Guid? portfolioId = null, [FromQuery] string? status = null)
         {
             var userId = GetUserId();
             var query = _db.PropertyDeals.Where(d => d.OwnerId == userId);
+
+            if (portfolioId.HasValue)
+            {
+                query = query.Where(d => d.PortfolioId == portfolioId.Value);
+            }
 
             if (!string.IsNullOrEmpty(status))
             {
@@ -92,6 +97,7 @@ namespace Mineplex.FinPlanner.Api.Controllers
             {
                 Id = Guid.NewGuid(),
                 OwnerId = userId,
+                PortfolioId = request.PortfolioId,
                 Name = request.Name,
                 Address = request.Address,
                 BuildingType = request.BuildingType,
@@ -179,6 +185,10 @@ namespace Mineplex.FinPlanner.Api.Controllers
                 deal.LeaseDetailsJson = string.IsNullOrEmpty(request.LeaseDetailsJson) ? null : request.LeaseDetailsJson;
             if (request.LoanDetailsJson != null)
                 deal.LoanDetailsJson = string.IsNullOrEmpty(request.LoanDetailsJson) ? null : request.LoanDetailsJson;
+            if (request.DistributionSettingsJson != null)
+                deal.DistributionSettingsJson = string.IsNullOrEmpty(request.DistributionSettingsJson) ? null : request.DistributionSettingsJson;
+            if (request.CorrelationMatrixJson != null)
+                deal.CorrelationMatrixJson = string.IsNullOrEmpty(request.CorrelationMatrixJson) ? null : request.CorrelationMatrixJson;
             if (request.Status != null) deal.Status = request.Status;
 
             // Validation: Discount rate must be >= Interest rate
@@ -231,11 +241,37 @@ namespace Mineplex.FinPlanner.Api.Controllers
 
             var oldStatus = deal.Status;
 
+            // Get latest simulation for snapshot reference
+            var latestSimulation = await _db.DealSimulationResults
+                .Where(s => s.DealId == id)
+                .OrderByDescending(s => s.RunDate)
+                .FirstOrDefaultAsync();
+
+            // Build inputs snapshot from current deal state
+            var inputsSnapshot = new
+            {
+                deal.AskingPrice,
+                deal.EstimatedGrossRent,
+                deal.VacancyRatePercent,
+                deal.ManagementFeePercent,
+                deal.OutgoingsEstimate,
+                deal.LoanAmount,
+                deal.InterestRatePercent,
+                deal.CapitalGrowthPercent,
+                deal.DiscountRate,
+                deal.HoldingPeriodYears,
+                deal.RentalGrowthPercent,
+                deal.RentVariancePercent,
+                deal.VacancyVariancePercent,
+                deal.InterestVariancePercent,
+                deal.CapitalGrowthVariancePercent
+            };
+
             // Update status
             deal.Status = request.Status;
             deal.UpdatedAt = DateTime.UtcNow;
 
-            // Create history record
+            // Create history record with snapshots
             var history = new DealStatusHistory
             {
                 Id = Guid.NewGuid(),
@@ -244,7 +280,10 @@ namespace Mineplex.FinPlanner.Api.Controllers
                 NewStatus = request.Status,
                 Comment = request.Comment,
                 ChangedBy = userId,
-                ChangedAt = DateTime.UtcNow
+                ChangedAt = DateTime.UtcNow,
+                InputsSnapshotJson = JsonSerializer.Serialize(inputsSnapshot),
+                SpreadsheetSnapshotJson = deal.SpreadsheetOverridesJson,
+                SimulationSnapshotId = latestSimulation?.Id
             };
 
             _db.DealStatusHistory.Add(history);
@@ -271,6 +310,101 @@ namespace Mineplex.FinPlanner.Api.Controllers
             _db.PropertyDeals.Remove(deal);
             await _db.SaveChangesAsync();
             return NoContent();
+        }
+
+        #endregion
+
+        #region Status History
+
+        /// <summary>
+        /// Get status history for a deal
+        /// </summary>
+        [HttpGet("{id}/status-history")]
+        public async Task<ActionResult<List<DealStatusHistoryDto>>> GetStatusHistory(Guid id)
+        {
+            var userId = GetUserId();
+            var deal = await _db.PropertyDeals.FirstOrDefaultAsync(d => d.Id == id && d.OwnerId == userId);
+
+            if (deal == null)
+                return NotFound();
+
+            var history = await _db.DealStatusHistory
+                .Where(h => h.DealId == id)
+                .OrderByDescending(h => h.ChangedAt)
+                .Take(50)
+                .ToListAsync();
+
+            // Resolve user names
+            var userIds = history.Select(h => h.ChangedBy).Distinct().ToList();
+            var users = await _db.Users
+                .Where(u => userIds.Contains(u.Id))
+                .ToDictionaryAsync(u => u.Id, u => u.Email);
+
+            var dtos = history.Select(h => new DealStatusHistoryDto
+            {
+                Id = h.Id,
+                Status = h.NewStatus,
+                PreviousStatus = h.OldStatus,
+                Comment = h.Comment,
+                Timestamp = h.ChangedAt,
+                UserName = users.GetValueOrDefault(h.ChangedBy, "Unknown"),
+                HasSnapshot = h.InputsSnapshotJson != null,
+                InputsSnapshotJson = h.InputsSnapshotJson,
+                SpreadsheetSnapshotJson = h.SpreadsheetSnapshotJson,
+                SimulationSnapshotId = h.SimulationSnapshotId
+            }).ToList();
+
+            return Ok(dtos);
+        }
+
+        /// <summary>
+        /// Restore deal inputs from a historical snapshot
+        /// </summary>
+        [HttpPost("{dealId}/restore-snapshot/{historyId}")]
+        public async Task<IActionResult> RestoreFromSnapshot(Guid dealId, Guid historyId)
+        {
+            var userId = GetUserId();
+            var deal = await _db.PropertyDeals.FirstOrDefaultAsync(d => d.Id == dealId && d.OwnerId == userId);
+
+            if (deal == null)
+                return NotFound();
+
+            var historyEntry = await _db.DealStatusHistory.FirstOrDefaultAsync(h => h.Id == historyId && h.DealId == dealId);
+
+            if (historyEntry == null || historyEntry.InputsSnapshotJson == null)
+                return BadRequest("No snapshot available for this history entry");
+
+            // Deserialize and apply inputs
+            var snapshot = JsonSerializer.Deserialize<InputsSnapshot>(historyEntry.InputsSnapshotJson);
+            if (snapshot != null)
+            {
+                deal.AskingPrice = snapshot.AskingPrice;
+                deal.EstimatedGrossRent = snapshot.EstimatedGrossRent;
+                deal.VacancyRatePercent = snapshot.VacancyRatePercent;
+                deal.ManagementFeePercent = snapshot.ManagementFeePercent;
+                deal.OutgoingsEstimate = snapshot.OutgoingsEstimate;
+                deal.LoanAmount = snapshot.LoanAmount;
+                deal.InterestRatePercent = snapshot.InterestRatePercent;
+                deal.CapitalGrowthPercent = snapshot.CapitalGrowthPercent;
+                deal.DiscountRate = snapshot.DiscountRate;
+                deal.HoldingPeriodYears = snapshot.HoldingPeriodYears;
+                deal.RentalGrowthPercent = snapshot.RentalGrowthPercent;
+                deal.RentVariancePercent = snapshot.RentVariancePercent;
+                deal.VacancyVariancePercent = snapshot.VacancyVariancePercent;
+                deal.InterestVariancePercent = snapshot.InterestVariancePercent;
+                deal.CapitalGrowthVariancePercent = snapshot.CapitalGrowthVariancePercent;
+            }
+
+            // Restore spreadsheet overrides if present
+            if (historyEntry.SpreadsheetSnapshotJson != null)
+            {
+                deal.SpreadsheetOverridesJson = historyEntry.SpreadsheetSnapshotJson;
+            }
+
+            deal.UpdatedAt = DateTime.UtcNow;
+            await _db.SaveChangesAsync();
+
+            return Ok(deal);
         }
 
         #endregion
@@ -364,6 +498,7 @@ namespace Mineplex.FinPlanner.Api.Controllers
 
     public class CreateDealRequest
     {
+        public Guid? PortfolioId { get; set; }
         public required string Name { get; set; }
         public string? Address { get; set; }
         public string? BuildingType { get; set; }
@@ -429,6 +564,8 @@ namespace Mineplex.FinPlanner.Api.Controllers
         public string? SpreadsheetOverridesJson { get; set; }
         public string? LeaseDetailsJson { get; set; }
         public string? LoanDetailsJson { get; set; }
+        public string? DistributionSettingsJson { get; set; }
+        public string? CorrelationMatrixJson { get; set; }
         public string? Status { get; set; }
     }
 
@@ -459,6 +596,39 @@ namespace Mineplex.FinPlanner.Api.Controllers
         public string? IRRHistogramJson { get; set; }
         public string? YearlyDCFJson { get; set; }
         public string? InputsSnapshotJson { get; set; }
+    }
+
+    public class DealStatusHistoryDto
+    {
+        public Guid Id { get; set; }
+        public string Status { get; set; } = "";
+        public string PreviousStatus { get; set; } = "";
+        public string? Comment { get; set; }
+        public DateTime Timestamp { get; set; }
+        public string UserName { get; set; } = "";
+        public bool HasSnapshot { get; set; }
+        public string? InputsSnapshotJson { get; set; }
+        public string? SpreadsheetSnapshotJson { get; set; }
+        public Guid? SimulationSnapshotId { get; set; }
+    }
+
+    public class InputsSnapshot
+    {
+        public decimal AskingPrice { get; set; }
+        public decimal EstimatedGrossRent { get; set; }
+        public decimal VacancyRatePercent { get; set; }
+        public decimal ManagementFeePercent { get; set; }
+        public decimal OutgoingsEstimate { get; set; }
+        public decimal LoanAmount { get; set; }
+        public decimal InterestRatePercent { get; set; }
+        public decimal CapitalGrowthPercent { get; set; }
+        public decimal DiscountRate { get; set; }
+        public int HoldingPeriodYears { get; set; }
+        public decimal RentalGrowthPercent { get; set; }
+        public decimal RentVariancePercent { get; set; }
+        public decimal VacancyVariancePercent { get; set; }
+        public decimal InterestVariancePercent { get; set; }
+        public decimal CapitalGrowthVariancePercent { get; set; }
     }
 
     #endregion

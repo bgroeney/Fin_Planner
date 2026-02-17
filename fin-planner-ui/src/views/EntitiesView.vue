@@ -5,11 +5,6 @@
         <h1>Entity Structure</h1>
         <p class="subtitle">Manage family members, trusts, and companies for tax planning</p>
       </div>
-      <div class="portfolio-selector">
-        <select v-model="selectedPortfolioId" @change="loadEntities">
-          <option v-for="p in portfolios" :key="p.id" :value="p.id">{{ p.name }}</option>
-        </select>
-      </div>
     </div>
 
     <div v-if="loading" class="loader-container">
@@ -271,19 +266,22 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
+import { usePortfolioStore } from '../stores/portfolio';
 import api from '../services/api';
+import { formatCurrency } from '../utils/formatters';
 
 const router = useRouter();
+const portfolioStore = usePortfolioStore();
 
 const loading = ref(true);
 const saving = ref(false);
-const portfolios = ref([]);
-const selectedPortfolioId = ref(null);
 const persons = ref([]);
 const trusts = ref([]);
 const companies = ref([]);
+
+const currentPortfolioId = computed(() => portfolioStore.currentPortfolioId);
 
 // Modals
 const showCreatePerson = ref(false);
@@ -315,9 +313,7 @@ const newCompany = ref({
   incorporationDate: ''
 });
 
-const formatCurrency = (value) => {
-  return new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD' }).format(value || 0);
-};
+
 
 const getInitials = (name) => {
   if (!name) return '?';
@@ -332,27 +328,18 @@ const getTaxRateClass = (rate) => {
   return 'tax-high';
 };
 
-const loadPortfolios = async () => {
-  try {
-    const res = await api.get('/portfolios');
-    portfolios.value = res.data;
-    if (portfolios.value.length > 0) {
-      selectedPortfolioId.value = portfolios.value[0].id;
-    }
-  } catch (e) {
-    console.error('Failed to load portfolios', e);
-  }
-};
-
 const loadEntities = async () => {
-  if (!selectedPortfolioId.value) return;
+  if (!currentPortfolioId.value) {
+    loading.value = false;
+    return;
+  }
   loading.value = true;
   
   try {
     const [personsRes, trustsRes, companiesRes] = await Promise.all([
-      api.get(`/persons?portfolioId=${selectedPortfolioId.value}`),
-      api.get(`/trusts?portfolioId=${selectedPortfolioId.value}`),
-      api.get(`/companies?portfolioId=${selectedPortfolioId.value}`)
+      api.get(`/persons?portfolioId=${currentPortfolioId.value}`),
+      api.get(`/trusts?portfolioId=${currentPortfolioId.value}`),
+      api.get(`/companies?portfolioId=${currentPortfolioId.value}`)
     ]);
     
     persons.value = personsRes.data;
@@ -384,7 +371,7 @@ const createPerson = async () => {
   saving.value = true;
   try {
     await api.post('/persons', {
-      portfolioId: selectedPortfolioId.value,
+      portfolioId: currentPortfolioId.value,
       ...newPerson.value
     });
     showCreatePerson.value = false;
@@ -401,7 +388,7 @@ const createTrust = async () => {
   saving.value = true;
   try {
     await api.post('/trusts', {
-      portfolioId: selectedPortfolioId.value,
+      portfolioId: currentPortfolioId.value,
       ...newTrust.value
     });
     showCreateTrust.value = false;
@@ -418,7 +405,7 @@ const createCompany = async () => {
   saving.value = true;
   try {
     await api.post('/companies', {
-      portfolioId: selectedPortfolioId.value,
+      portfolioId: currentPortfolioId.value,
       ...newCompany.value
     });
     showCreateCompany.value = false;
@@ -443,10 +430,14 @@ const viewCompany = (company) => {
   router.push(`/entities/company/${company.id}`);
 };
 
-onMounted(async () => {
-  await loadPortfolios();
-  if (selectedPortfolioId.value) {
-    await loadEntities();
+// Watch for portfolio changes
+watch(currentPortfolioId, () => {
+  loadEntities();
+});
+
+onMounted(() => {
+  if (currentPortfolioId.value) {
+    loadEntities();
   } else {
     loading.value = false;
   }

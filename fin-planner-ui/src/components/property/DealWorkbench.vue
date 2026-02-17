@@ -19,8 +19,9 @@
          <LifecycleStepper 
             :current-status="deal.status" 
             :loading="transitioning"
-            @transition="handleLifecycleTransition"
+            @request-transition="handleTransitionRequest"
             @request-revert="handleRevertRequest"
+            @toggle-history="showHistoryPanel = true"
          />
       </div>
 
@@ -392,10 +393,6 @@
         />
     </div>
 
-        />
-    </div>
-
-
     <!-- Detailed Spreadsheet View -->
     <div v-else-if="viewMode === 'detailed'" class="spreadsheet-view">
       <CashflowSpreadsheet 
@@ -412,16 +409,13 @@
         <DealDocuments :deal-id="deal.id" />
     </div>
 
-    <!-- History Sidebar/Panel -->
-    <transition name="slide-fade">
-       <div v-if="showHistoryPanel" class="history-panel glass-card">
-          <div class="panel-header">
-             <h3>Status History</h3>
-             <button class="btn-close-sm" @click="showHistoryPanel = false">×</button>
-          </div>
-          <DealStatusHistory :history="statusHistory" :loading="historyLoading" />
-       </div>
-    </transition>
+    <!-- Status History Modal -->
+    <StatusHistoryModal 
+       v-if="showHistoryPanel" 
+       :deal-id="deal.id"
+       @close="showHistoryPanel = false"
+       @restored="emit('refresh')"
+    />
 
     <!-- Revert Status Modal -->
     <div v-if="showRevertModal" class="modal-backdrop" @click.self="showRevertModal = false">
@@ -494,7 +488,7 @@ import CashflowSpreadsheet from './CashflowSpreadsheet.vue';
 import PropertyRiskAnalyzer from './PropertyRiskAnalyzer.vue';
 import LifecycleStepper from './LifecycleStepper.vue';
 import DealDocuments from './DealDocuments.vue';
-import DealStatusHistory from './DealStatusHistory.vue';
+import StatusHistoryModal from './StatusHistoryModal.vue';
 
 const viewMode = ref('summary'); 
 const spreadsheetData = ref(null);
@@ -710,6 +704,14 @@ function handleInputsUpdate(newInputs) {
     if (newInputs.vacancyVariancePercent !== props.deal.vacancyVariancePercent) updates.vacancyVariancePercent = newInputs.vacancyVariancePercent;
     if (newInputs.capitalGrowthVariancePercent !== props.deal.capitalGrowthVariancePercent) updates.capitalGrowthVariancePercent = newInputs.capitalGrowthVariancePercent;
     if (newInputs.interestVariancePercent !== props.deal.interestVariancePercent) updates.interestVariancePercent = newInputs.interestVariancePercent;
+    
+    // Persist distribution settings JSON if provided
+    if (newInputs.distributionSettingsJson !== undefined) {
+        updates.distributionSettingsJson = newInputs.distributionSettingsJson;
+    }
+    if (newInputs.correlationMatrixJson !== undefined) {
+        updates.correlationMatrixJson = newInputs.correlationMatrixJson;
+    }
     
     if (Object.keys(updates).length > 0) {
         emit('update', updates);

@@ -53,13 +53,7 @@
         </div>
       </div>
 
-      <div class="stat-card card animate-fade-in-up stagger-2">
-        <div class="stat-header">
-          <span class="stat-label">Portfolios</span>
-        </div>
-        <div class="stat-value">{{ portfolioCount }}</div>
-        <div class="stat-detail text-muted">Active strategies</div>
-      </div>
+
 
       <div class="stat-card card animate-fade-in-up stagger-3">
         <div class="stat-header">
@@ -130,7 +124,7 @@ const authStore = useAuthStore();
 const portfolioStore = usePortfolioStore();
 
 const loading = computed(() => portfolioStore.loading);
-const portfolios = computed(() => portfolioStore.portfolios);
+// const portfolios = computed(() => portfolioStore.portfolios); // No longer needed for aggregation
 const selectedBenchmark = ref('');
 
 const userName = computed(() => {
@@ -144,25 +138,28 @@ const currentDate = computed(() => {
   return formatDate(new Date(), 'long');
 });
 
+const currentPortfolio = computed(() => portfolioStore.currentPortfolio);
+
 const totalValue = computed(() => {
-  return portfolios.value.reduce((sum, p) => sum + (p.totalValue || 0), 0);
+  return currentPortfolio.value?.totalValue || 0;
 });
 
-const portfolioCount = computed(() => portfolios.value.length);
-
 const primaryPortfolioId = computed(() => {
-  return portfolioStore.currentPortfolio?.id || null;
+  return currentPortfolio.value?.id || null;
 });
 
 const assetCount = computed(() => {
-  return portfolios.value.reduce((sum, p) => sum + (p.holdingCount || 0), 0);
+  return currentPortfolio.value?.holdingCount || 0;
 });
 
 const pendingDecisions = ref(0);
 const changePercent = ref(2.34);
 
 const fetchData = async () => {
-  await portfolioStore.fetchPortfolios();
+  // Ensure we have the portfolios loaded
+  if (portfolioStore.portfolios.length === 0) {
+    await portfolioStore.fetchPortfolios();
+  }
 };
 
 onMounted(fetchData);

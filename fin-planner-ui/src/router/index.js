@@ -20,14 +20,19 @@ const router = createRouter({
                     component: () => import('../views/DashboardView.vue')
                 },
                 {
-                    path: 'portfolios',
-                    name: 'portfolios',
-                    component: () => import('../views/PortfolioListView.vue')
+                    path: 'holdings',
+                    name: 'holdings',
+                    component: () => import('../views/PortfolioDetailView.vue')
                 },
                 {
+                    // Legacy route - redirects to holdings
+                    path: 'portfolios',
+                    redirect: '/holdings'
+                },
+                {
+                    // Legacy route - redirects to holdings
                     path: 'portfolio/:id',
-                    name: 'portfolio-detail',
-                    component: () => import('../views/PortfolioDetailView.vue')
+                    redirect: '/holdings'
                 },
                 {
                     path: 'import',

@@ -53,8 +53,11 @@ namespace Mineplex.FinPlanner.Api.Controllers
 
             // Calculate initial balance from portfolio holdings
             var portfolioValue = await _context.Holdings
+                .Include(h => h.Asset)
+                    .ThenInclude(a => a.CurrentPrice)
                 .Where(h => h.Account.PortfolioId == scenario.PortfolioId)
-                .SumAsync(h => h.CurrentValue); // assuming CurrentValue is populated
+                .Select(h => h.Units * (h.Asset.CurrentPrice != null ? h.Asset.CurrentPrice.Price : 0))
+                .SumAsync(x => x);
 
             var parameters = new StressTestParameters
             {

@@ -7,6 +7,7 @@ public class AuditLog
 {
     public Guid Id { get; set; }
     public Guid UserId { get; set; }
+    public Guid? PortfolioId { get; set; }
     public string UserEmail { get; set; } = string.Empty;
 
     /// <summary>
