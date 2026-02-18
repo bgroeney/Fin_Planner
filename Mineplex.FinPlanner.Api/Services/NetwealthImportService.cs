@@ -143,12 +143,44 @@ namespace Mineplex.FinPlanner.Api.Services
             // For MVP, if asset doesn't exist, create it.
             // In a real app we'd map codes to a master list.
 
+            // Performance Optimization: Pre-fetch assets, holdings and transactions to avoid N+1 queries in the loop
+            var symbols = preview.PreviewRecords
+                .Select(r => r.Code)
+                .Where(c => !string.IsNullOrEmpty(c))
+                .Distinct()
+                .ToList();
+
+            var assetsCache = await _context.Assets
+                .Where(a => symbols.Contains(a.Symbol))
+                .ToDictionaryAsync(a => a.Symbol, a => a);
+
+            var holdingsCache = new Dictionary<Guid, Holding>();
+            if (preview.FileType == "PortfolioValuation")
+            {
+                holdingsCache = await _context.Holdings
+                    .Where(h => h.AccountId == account.Id)
+                    .ToDictionaryAsync(h => h.AssetId, h => h);
+            }
+
+            var transactionCache = new HashSet<(Guid AssetId, DateTime? Date, decimal Amount)>();
+            if (preview.FileType == "TransactionListing")
+            {
+                var existingTxns = await _context.Transactions
+                    .Where(t => t.AccountId == account.Id)
+                    .Select(t => new { t.AssetId, t.EffectiveDate, t.Amount })
+                    .ToListAsync();
+
+                foreach (var t in existingTxns)
+                {
+                    transactionCache.Add((t.AssetId, t.EffectiveDate, t.Amount));
+                }
+            }
+
             foreach (var rec in preview.PreviewRecords)
             {
                 if (string.IsNullOrEmpty(rec.Code)) continue; // Skip cash/unknown for now unless it has a special code
 
-                var asset = await _context.Assets.FirstOrDefaultAsync(a => a.Symbol == rec.Code);
-                if (asset == null)
+                if (!assetsCache.TryGetValue(rec.Code, out var asset))
                 {
                     asset = new Asset
                     {
@@ -159,15 +191,13 @@ namespace Mineplex.FinPlanner.Api.Services
                     };
                     _context.Assets.Add(asset);
                     await _context.SaveChangesAsync();
+                    assetsCache[rec.Code] = asset;
                 }
 
                 if (preview.FileType == "PortfolioValuation")
                 {
                     // Upsert Holding
-                    var holding = await _context.Holdings
-                        .FirstOrDefaultAsync(h => h.AccountId == account.Id && h.AssetId == asset.Id);
-
-                    if (holding == null)
+                    if (!holdingsCache.TryGetValue(asset.Id, out var holding))
                     {
                         holding = new Holding
                         {
@@ -179,11 +209,11 @@ namespace Mineplex.FinPlanner.Api.Services
                             CurrentValue = rec.Amount
                         };
                         _context.Holdings.Add(holding);
+                        holdingsCache[asset.Id] = holding;
                     }
-                    {
-                        holding.Units = rec.Units;
-                        holding.CurrentValue = rec.Amount;
-                    }
+
+                    holding.Units = rec.Units;
+                    holding.CurrentValue = rec.Amount;
 
                     // Create ImportedAssetPrice for history/fallback
                     if (rec.Units != 0 && valuationDate.HasValue)
@@ -208,11 +238,7 @@ namespace Mineplex.FinPlanner.Api.Services
                 else if (preview.FileType == "TransactionListing")
                 {
                     // Insert Transaction if not exists (check by date/amount/asset)
-                    var exists = await _context.Transactions
-                        .AnyAsync(t => t.AccountId == account.Id
-                                    && t.AssetId == asset.Id
-                                    && t.EffectiveDate == rec.Date
-                                    && t.Amount == rec.Amount);
+                    var exists = transactionCache.Contains((asset.Id, rec.Date, rec.Amount));
 
                     if (!exists && (!rec.IsDuplicate || dto.IncludeDuplicates)) // Allow override
                     {
@@ -232,6 +258,9 @@ namespace Mineplex.FinPlanner.Api.Services
                             ExternalReferenceId = GenerateTransactionHash(rec.Date, rec.Code, rec.Type, rec.Units, rec.Amount),
                             FileUploadId = fileUpload.Id
                         });
+
+                        // Add to cache to avoid duplicates within the same import if they appear twice in the file
+                        transactionCache.Add((asset.Id, rec.Date, rec.Amount));
                     }
                 }
             }
