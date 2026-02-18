@@ -72,31 +72,50 @@ namespace Mineplex.FinPlanner.Api.Services
                     return result;
                 }
 
-                var priceResults = await priceManager.GetBatchPricesWithFallbackAsync(assets);
-                var overrides = await db.AssetPriceSourceOverrides
-                    .Where(o => o.IsPreferred)
-                    .ToListAsync(cancellationToken);
-
-                foreach (var asset in assets)
+                // Process in batches to manage memory and avoid massive queries
+                int batchSize = 50;
+                for (int i = 0; i < assets.Count; i += batchSize)
                 {
-                    if (priceResults.TryGetValue(asset.Id, out var priceInfo))
-                    {
-                        await UpdateCurrentPriceAsync(db, asset.Id, priceInfo.Price, priceInfo.SourceUsed);
-                        result.UpdatedCount++;
+                    var batchAssets = assets.Skip(i).Take(batchSize).ToList();
+                    var batchAssetIds = batchAssets.Select(a => a.Id).ToList();
 
-                        await HandleSourceSwitchingAsync(db, asset, priceInfo.SourceUsed, sources, overrides);
-                        await HandleSuggestedSymbolAsync(db, asset, priceInfo.SuggestedSymbol, priceInfo.SourceUsed, overrides);
-                        await BackfillHistoricalDataIfNeededAsync(db, priceManager, asset);
-                    }
-                    else
+                    // Optimization: Pre-fetch history existence for this batch (Safe IN clause)
+                    var existingHistoryAssetIds = await db.HistoricalPrices
+                        .Where(hp => batchAssetIds.Contains(hp.AssetId))
+                        .Select(hp => hp.AssetId)
+                        .Distinct()
+                        .ToListAsync(cancellationToken);
+                    var existingHistorySet = new HashSet<Guid>(existingHistoryAssetIds);
+
+                    var priceResults = await priceManager.GetBatchPricesWithFallbackAsync(batchAssets);
+
+                    // Fetch overrides for this batch only
+                    var overrides = await db.AssetPriceSourceOverrides
+                        .Where(o => o.IsPreferred && batchAssetIds.Contains(o.AssetId))
+                        .ToListAsync(cancellationToken);
+
+                    foreach (var asset in batchAssets)
                     {
-                        result.FailedCount++;
-                        result.Errors.Add($"Failed to get price for {asset.Symbol}");
-                        _logger.LogWarning("Failed to get price for asset {Symbol} ({AssetId})", asset.Symbol, asset.Id);
+                        if (priceResults.TryGetValue(asset.Id, out var priceInfo))
+                        {
+                            await UpdateCurrentPriceAsync(db, asset.Id, priceInfo.Price, priceInfo.SourceUsed);
+                            result.UpdatedCount++;
+
+                            await HandleSourceSwitchingAsync(db, asset, priceInfo.SourceUsed, sources, overrides);
+                            await HandleSuggestedSymbolAsync(db, asset, priceInfo.SuggestedSymbol, priceInfo.SourceUsed, overrides);
+                            await BackfillHistoricalDataIfNeededAsync(db, priceManager, asset, existingHistorySet);
+                        }
+                        else
+                        {
+                            result.FailedCount++;
+                            result.Errors.Add($"Failed to get price for {asset.Symbol}");
+                            _logger.LogWarning("Failed to get price for asset {Symbol} ({AssetId})", asset.Symbol, asset.Id);
+                        }
                     }
+
+                    // Save changes per batch
+                    await db.SaveChangesAsync(cancellationToken);
                 }
-
-                await db.SaveChangesAsync(cancellationToken);
             }
             catch (Exception ex)
             {
@@ -152,6 +171,14 @@ namespace Mineplex.FinPlanner.Api.Services
                     .Where(o => o.IsPreferred && assetIds.Contains(o.AssetId))
                     .ToListAsync(cancellationToken);
 
+                // Optimization: Pre-fetch history check for portfolio assets
+                var existingHistoryAssetIds = await db.HistoricalPrices
+                    .Where(hp => assetIds.Contains(hp.AssetId))
+                    .Select(hp => hp.AssetId)
+                    .Distinct()
+                    .ToListAsync(cancellationToken);
+                var existingHistorySet = new HashSet<Guid>(existingHistoryAssetIds);
+
                 // Get cached prices to skip recently updated assets
                 var cachedPrices = await db.CurrentPrices
                     .Where(cp => assetIds.Contains(cp.AssetId))
@@ -174,7 +201,7 @@ namespace Mineplex.FinPlanner.Api.Services
 
                         await HandleSourceSwitchingAsync(db, asset, priceInfo.SourceUsed, sources, overrides);
                         await HandleSuggestedSymbolAsync(db, asset, priceInfo.SuggestedSymbol, priceInfo.SourceUsed, overrides);
-                        await BackfillHistoricalDataIfNeededAsync(db, priceManager, asset);
+                        await BackfillHistoricalDataIfNeededAsync(db, priceManager, asset, existingHistorySet);
                     }
                     else
                     {
@@ -337,12 +364,12 @@ namespace Mineplex.FinPlanner.Api.Services
         }
 
         private async Task BackfillHistoricalDataIfNeededAsync(
-            FinPlannerDbContext db, PriceSourceManager priceManager, Asset asset)
+            FinPlannerDbContext db,
+            PriceSourceManager priceManager,
+            Asset asset,
+            HashSet<Guid> existingHistoryAssetIds)
         {
-            var hasHistoricalData = await db.HistoricalPrices
-                .AnyAsync(hp => hp.AssetId == asset.Id);
-
-            if (hasHistoricalData) return;
+            if (existingHistoryAssetIds.Contains(asset.Id)) return;
 
             _logger.LogInformation("Backfilling historical data for new asset {Symbol}", asset.Symbol);
 
@@ -370,11 +397,12 @@ namespace Mineplex.FinPlanner.Api.Services
 
                 var existingDatesSet = new HashSet<DateTime>(existingDates);
 
+                var newPrices = new List<HistoricalPrice>();
                 foreach (var priceData in historicalPrices)
                 {
                     if (!existingDatesSet.Contains(priceData.Date.Date))
                     {
-                        db.HistoricalPrices.Add(new HistoricalPrice
+                        newPrices.Add(new HistoricalPrice
                         {
                             Id = Guid.NewGuid(),
                             AssetId = asset.Id,
@@ -384,7 +412,11 @@ namespace Mineplex.FinPlanner.Api.Services
                     }
                 }
 
-                await db.SaveChangesAsync();
+                if (newPrices.Any())
+                {
+                    db.HistoricalPrices.AddRange(newPrices);
+                    await db.SaveChangesAsync();
+                }
                 _logger.LogInformation("Backfilled {Count} historical prices for {Symbol}",
                     historicalPrices.Count, asset.Symbol);
             }
