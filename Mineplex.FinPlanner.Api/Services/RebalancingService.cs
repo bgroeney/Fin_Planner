@@ -102,10 +102,28 @@ namespace Mineplex.FinPlanner.Api.Services
         {
             var createdTransactionIds = new List<Guid>();
 
+            // Pre-fetch all existing holdings for the portfolio to avoid N+1 queries.
+            // If an asset is held in multiple accounts, we take the first one found,
+            // matching the behavior of the original FirstOrDefaultAsync query.
+            var existingHoldings = await _context.Holdings
+                .Where(h => h.Account.PortfolioId == portfolioId)
+                .ToListAsync();
+
+            var holdingsMap = existingHoldings
+                .GroupBy(h => h.AssetId)
+                .ToDictionary(g => g.Key, g => g.First());
+
+            // Pre-fetch the first account to use for new holdings
+            var firstAccount = await _context.Accounts
+                .FirstOrDefaultAsync(a => a.PortfolioId == portfolioId);
+
+            // Pre-fetch the first category ID to use for new holdings
+            var firstCategoryId = (await _context.AssetCategories
+                .FirstOrDefaultAsync(c => c.PortfolioId == portfolioId))?.Id;
+
             foreach (var action in actions)
             {
-                var existingHolding = await _context.Holdings
-                    .FirstOrDefaultAsync(h => h.AssetId == action.AssetId && h.Account.PortfolioId == portfolioId);
+                holdingsMap.TryGetValue(action.AssetId, out var existingHolding);
 
                 Guid accountId;
                 if (existingHolding != null)
@@ -114,8 +132,6 @@ namespace Mineplex.FinPlanner.Api.Services
                 }
                 else
                 {
-                    var firstAccount = await _context.Accounts
-                        .FirstOrDefaultAsync(a => a.PortfolioId == portfolioId);
                     if (firstAccount == null) continue;
                     accountId = firstAccount.Id;
                 }
@@ -157,9 +173,10 @@ namespace Mineplex.FinPlanner.Api.Services
                         AssetId = action.AssetId,
                         Units = action.Units,
                         AvgCost = action.Units > 0 ? Math.Abs(action.Amount) / action.Units : 0,
-                        CategoryId = (await _context.AssetCategories.FirstOrDefaultAsync(c => c.PortfolioId == portfolioId))?.Id ?? Guid.Empty
+                        CategoryId = firstCategoryId ?? Guid.Empty
                     };
                     _context.Holdings.Add(holding);
+                    holdingsMap[action.AssetId] = holding; // Update map for subsequent actions of same asset
                 }
 
                 await _auditService.LogAsync(userId, userEmail, "ExecuteRebalancing", "Portfolio", portfolioId, $"Rebalanced {action.AssetId}");
