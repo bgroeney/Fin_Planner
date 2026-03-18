@@ -328,13 +328,26 @@ const propertyInputs = computed(() => {
       .filter(l => l.isActive)
       .reduce((sum, l) => sum + (l.currentRent || 0), 0);
   
+  // Calculate trailing 12 months outgoings from ledger
+  const oneYearAgo = new Date();
+  oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+
+  const relevantEntries = ledgerEntries.value.filter(e => new Date(e.date) >= oneYearAgo);
+
+  const outgoings = relevantEntries
+    .filter(e => !e.isIncome && e.type !== 'Repairs_CapEx')
+    .reduce((sum, e) => sum + (e.amount || 0), 0);
+
+  const hasManagementFee = relevantEntries.some(e => e.type === 'Management_Fee');
+
   return {
     propertyValue: latestValuation.value,
     currentValue: latestValuation.value,
     askingPrice: latestValuation.value, // For simulation compatibility
     estimatedGrossRent: totalRent,
     annualRent: totalRent,
-    outgoingsEstimate: 0, // TODO: Calculate from ledger if available
+    outgoingsEstimate: outgoings,
+    managementFeePercent: hasManagementFee ? 0 : 7,
     vacancyRatePercent: 5,
     capitalGrowthPercent: 3,
     loanAmount: 0, // TODO: Fetch from linked accounts if available
